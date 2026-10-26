@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.npm-cache/
+*.local
+.DS_Store
+Thumbs.db
+*.apk
+
+# Registros de instalación que deja este PC.
+install.log
+npm-install.log
+out.txt
+
+# El proyecto Android sí se versiona; lo que se genera, no.
+android/app/src/main/assets/www/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+docs/captures/_cover.jpg

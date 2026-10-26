@@ -1,0 +1,24 @@
+{
+  "name": "spindisk",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tocadiscos de escritorio para tablet Android: visualiza y controla Spotify / YouTube Music / YouTube.",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/serve.mjs",
+    "typecheck": "node scripts/check.mjs",
+    "preview": "node scripts/preview.mjs",
+    "sim": "node scripts/sim.mjs",
+    "ui": "node scripts/uitest.mjs",
+    "audio": "node scripts/audiotest.mjs",
+    "native": "node scripts/native.mjs",
+    "native:check": "node scripts/nativecheck.mjs",
+    "bridge": "node scripts/nativebridge.mjs"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^1.0.13",
+    "typescript": "^5.7.2"
+  }
+}

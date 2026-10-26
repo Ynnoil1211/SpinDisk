@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sin barra de acción y sin estado: la escena ocupa la pantalla entera. -->
+    <style name="Theme.SpinDisk" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">#0B0908</item>
+        <item name="android:colorBackground">#0B0908</item>
+        <item name="android:statusBarColor">#0B0908</item>
+        <item name="android:navigationBarColor">#0B0908</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

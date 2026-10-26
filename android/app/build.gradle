@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.spindisk.tablet'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.spindisk.tablet'
+        minSdk 24
+        targetSdk 34
+        versionCode 7
+        versionName '0.7.0'
+        resourceConfigurations += ['es', 'en']
+    }
+
+    buildTypes {
+        debug {
+            // El APK de depuración es el que se instala desde GitHub Actions.
+            applicationIdSuffix ''
+            versionNameSuffix ''
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    sourceSets {
+        main {
+            kotlin.srcDirs += ['src/main/kotlin']
+            // `node scripts/native.mjs` copia dist/ aquí antes de compilar.
+            assets.srcDirs += ['src/main/assets']
+        }
+    }
+}
+
+// Ni una dependencia: la app es una WebView del sistema + tres archivos Kotlin.
+dependencies {}
