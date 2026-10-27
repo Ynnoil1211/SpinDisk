@@ -215,6 +215,14 @@ check(
   askBody.length > 0 && !askBody.includes('openNotificationSettings('),
   'no salta a los ajustes sin que el usuario lo pida',
 );
+// En Android 15/16, PhoneWindow.getInsetsController() lanza
+// NullPointerException si se llama antes de que exista el decor.
+const onCreateBody = /override fun onCreate\(([\s\S]*?)\n    }/.exec(ktActivity)?.[1] ?? '';
+check(
+  'el modo inmersivo no se pide antes de tener contenido',
+  onCreateBody.length > 0 && !onCreateBody.includes('goFullscreen('),
+  'Android 15/16 revienta si se toca el decor en onCreate',
+);
 check(
   'apunta la traza del último fallo',
   /ultimo-fallo\.txt/.test(ktActivity) && /setDefaultUncaughtExceptionHandler/.test(ktActivity),

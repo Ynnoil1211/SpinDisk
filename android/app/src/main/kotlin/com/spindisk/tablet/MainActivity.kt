@@ -51,7 +51,6 @@ class MainActivity : Activity() {
             // el motor; si no llega a verse, ni siquiera se llegó a arrancar.
             showBoot("arrancando…")
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            goFullscreen()
             showLastCrashIfAny()
             window.decorView.post { mountWeb() }
         } catch (error: Throwable) {
@@ -65,6 +64,10 @@ class MainActivity : Activity() {
             val view = buildWeb()
             web = view
             setContentView(view)
+            // Después de `setContentView`: en Android 15/16, pedir el control de
+            // barras del sistema antes de que exista el decor lanza
+            // NullPointerException dentro de PhoneWindow.getInsetsController().
+            goFullscreen()
             MediaHub.sink = { json -> runOnUiThread { pushToWeb(json) } }
             view.loadUrl("file:///android_asset/www/index.html")
         } catch (error: Throwable) {
@@ -323,23 +326,41 @@ class MainActivity : Activity() {
     }
 
     private fun goFullscreen() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.systemBars())
-                controller.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // En Android 15/16, `window.insetsController` revienta con
+        // NullPointerException dentro de PhoneWindow si todavía no existe el
+        // decor: la llamada segura (`?.`) no protege de una excepción que salta
+        // dentro del propio getter. Por eso va envuelta y con respaldo clásico.
+        val applied = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
+                window.insetsController?.let { controller ->
+                    controller.hide(WindowInsets.Type.systemBars())
+                    controller.systemBarsBehavior =
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = immersiveFlags()
             }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                )
+            true
+        }.getOrDefault(false)
+
+        if (!applied) {
+            // Las banderas de siempre funcionan en cualquier versión y no
+            // necesitan el decor: si el control nuevo falla, se usa esto.
+            runCatching {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = immersiveFlags()
+            }
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun immersiveFlags(): Int =
+        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            or View.SYSTEM_UI_FLAG_FULLSCREEN
+            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 }
