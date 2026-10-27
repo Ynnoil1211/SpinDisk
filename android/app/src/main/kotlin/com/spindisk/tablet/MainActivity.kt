@@ -329,38 +329,35 @@ class MainActivity : Activity() {
         // En Android 15/16, `window.insetsController` revienta con
         // NullPointerException dentro de PhoneWindow si todavía no existe el
         // decor: la llamada segura (`?.`) no protege de una excepción que salta
-        // dentro del propio getter. Por eso va envuelta y con respaldo clásico.
-        val applied = runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        // dentro del propio getter. De ahí el try, y de ahí el respaldo con las
+        // banderas clásicas, que no necesitan decor ninguno.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
                 window.setDecorFitsSystemWindows(false)
-                window.insetsController?.let { controller ->
+                val controller = window.insetsController
+                if (controller != null) {
                     controller.hide(WindowInsets.Type.systemBars())
                     controller.systemBarsBehavior =
                         WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
-            } else {
-                @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = immersiveFlags()
-            }
-            true
-        }.getOrDefault(false)
-
-        if (!applied) {
-            // Las banderas de siempre funcionan en cualquier versión y no
-            // necesitan el decor: si el control nuevo falla, se usa esto.
-            runCatching {
-                @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = immersiveFlags()
+                return
+            } catch (error: Throwable) {
+                // se intenta el respaldo
             }
         }
-    }
 
-    @Suppress("DEPRECATION")
-    private fun immersiveFlags(): Int =
-        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        try {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                )
+        } catch (error: Throwable) {
+            // sin pantalla completa se ve igual, sólo con barras
+        }
+    }
 }
