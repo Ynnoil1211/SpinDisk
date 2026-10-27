@@ -4,9 +4,10 @@ Tocadiscos de escritorio para tablet Android en horizontal. No reproduce música
 engancha a lo que ya suena en Spotify, YouTube Music o YouTube y lo convierte en un disco
 de vinilo que gira, un brazo que se posa y una funda que se puede voltear.
 
-> Estado: **F0 a F7 cerradas** (entorno, escena, física medida, consola probada, reverso con
-> letra sincronizada, reposo con reloj, motor de sonido verificado y shell nativo escrito con su
-> contrato verificado). Falta que GitHub compile el APK. Ver [plan.md](plan.md).
+> Estado: **F0 a F8 cerradas** (entorno, escena, física medida, consola probada, reverso con
+> letra sincronizada, reposo con reloj, motor de sonido verificado, shell nativo y **APK que se
+> compila en la nube**). Queda instalar ese APK en la tablet y medir RAM y batería. Ver
+> [plan.md](plan.md).
 
 ## Cómo se trabaja
 
@@ -50,13 +51,16 @@ incluidas), cambia entre Spotify Free y Premium, y simula cinco saltos seguidos.
 | `nolyrics` | ficha técnica cuando la letra no está en el archivo |
 | `instrumental` | ficha técnica de una pieza instrumental |
 | `clock` | modo reloj de escritorio tras un minuto en pausa |
+| `clocktag` | reloj de día: la hora en un papelito mientras suena |
+| `clocksleep` | dormirse con la letra a la vista (la funda se gira sola) |
+| `black` `cream` `glass` | las otras tres texturas del vinilo |
 | `free` | el brazo rebotando en una cuenta gratuita |
 
-`node scripts/sim.mjs` mide la física en cambio: 49 comprobaciones con umbrales (freno, arranque,
-geometría del brazo, giro con el dedo, antirrebote, volteo de la funda, reposo) y una tira de
-cuatro fotogramas en `docs/captures/f2-freno.png`. `node scripts/uitest.mjs` hace lo mismo con
-la consola y el panel F2: 76 comprobaciones sobre el `index.html` real con un DOM mínimo y reloj
-falso. Los dos terminan en verde o con código 1.
+`node scripts/sim.mjs` mide la física en cambio: 62 comprobaciones con umbrales (freno, arranque,
+geometría del brazo, giro con el dedo, antirrebote, toque seco, volteo de la funda, reposo,
+atajo al reloj) y una tira de cuatro fotogramas en `docs/captures/f2-freno.png`.
+`node scripts/uitest.mjs` hace lo mismo con la consola y el panel F2: 83 comprobaciones sobre el
+`index.html` real con un DOM mínimo y reloj falso. Los dos terminan en verde o con código 1.
 
 El panel F2 incluye un botón **«Modo reloj ahora»**: adelanta el minuto de reposo para ver el
 reloj de escritorio sin esperar, y muestra la cuenta atrás real cuando está en pausa.
@@ -86,8 +90,17 @@ publicado de la interfaz es de 160 KB y el motor gráfico lo pone la propia tabl
 
 `.github/workflows/build-apk.yml` compila la interfaz, verifica el contrato, copia `dist/` a los
 assets y ejecuta `gradle :app:assembleDebug` en un runner de GitHub con JDK 17 y el SDK de
-Android. El `app-debug.apk` queda como artefacto descargable en la pestaña **Actions**. En este
-PC no hay JDK ni SDK, así que **la primera compilación real de Kotlin será la del runner**.
+Android. El `app-debug.apk` queda como artefacto descargable en la pestaña **Actions**.
+
+**Ya está compilado.** El primer `push` bastó: la
+[ejecución 40427965945](https://github.com/Ynnoil1211/SpinDisk/actions/runs/40427965945) terminó
+en verde en 98 s con las doce etapas correctas, y el artefacto **`spindisk-apk` pesa 0,83 MB**.
+Para instalarlo: descargar el `.zip` del artefacto, descomprimirlo, pasar el `app-debug.apk` a la
+tablet e instalarlo aceptando el origen desconocido. La primera vez que se abre pide **acceso a
+las notificaciones**, que es lo único que le permite saber qué suena.
+
+En este PC no hay JDK ni SDK: el Kotlin se escribió y revisó a mano, y la compilación de verdad
+la hizo el runner.
 
 ## Presupuesto
 

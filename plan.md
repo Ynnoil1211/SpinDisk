@@ -92,9 +92,10 @@ SpinDisk/
 
 ## 4. Estado actual (honesto)
 
-**El motor completo está escrito, compila sin errores, dibuja, su física está medida y el shell
-nativo está escrito.** F0 a F7 cerraron; F8 (APK en la nube) y F9 (medición en la tablet) siguen
-pendientes. La capa DOM ya se mira en el navegador del usuario, que encontró tres fallos de
+**El motor completo está escrito, compila sin errores, dibuja, su física está medida, el shell
+nativo está escrito y el APK ya se compila en la nube.** F0 a F8 cerraron; F9 sigue abierta en lo
+que sólo se puede medir con la tablet en la mano (RAM y batería) y en la instalación. La capa DOM
+ya se mira en el navegador del usuario, que encontró tres fallos de
 sensación que ningún banco veía: el giro iba al revés del dedo, giraba demasiado rápido y un toque
 en el vinilo dejaba la música en pausa para siempre. Hay cinco bancos, ninguno necesita navegador:
 `scripts/sim.mjs` (62 comprobaciones de física, avanza el tiempo a mano), `scripts/uitest.mjs` (83
@@ -119,7 +120,7 @@ Chrome, así que la verificación visual es un PNG generado por Node.
 | Reloj de día (opcional) | ✅ Verificado · `f5-clocktag.png` · asoma en 1,35 s |
 | Puente sandbox + búsqueda iTunes | Escrito, con cola de pistas; probado con `fetch` simulado |
 | Puente Android (cliente) | ✅ Verificado con `scripts/nativebridge.mjs` · 29/29 |
-| Shell Kotlin + manifiesto + Gradle | ✅ Escrito · contrato verificado 30/30 · **sin compilar** |
+| Shell Kotlin + manifiesto + Gradle | ✅ **Compila**: ejecución 40427965945, doce etapas en verde |
 | Letras LRCLIB + caché | Escrito, verificado (59 líneas reales) |
 | Foley sintetizado | ✅ Verificado con `scripts/audiotest.mjs` · 43/43 |
 | Consola de control | ✅ Verificada con `scripts/uitest.mjs` · 52/52 |
@@ -134,8 +135,8 @@ Chrome, así que la verificación visual es un PNG generado por Node.
 | Banco del contrato nativo | ✅ `node scripts/nativecheck.mjs` · 30/30 comprobaciones |
 | Banco del puente nativo | ✅ `node scripts/nativebridge.mjs` · 29/29 comprobaciones |
 | Captura visual | ✅ doce escenarios + tira de fotogramas en `docs/captures/` |
-| Compilación del APK | Pendiente (F8, en GitHub Actions) |
-| Prueba en tablet | Pendiente (F8) |
+| Compilación del APK | ✅ GitHub Actions · 98 s · artefacto `spindisk-apk` de 0,83 MB |
+| Prueba en tablet | Pendiente · instalar el APK y medir RAM/batería |
 
 **Bloqueos reales de este PC, ya resueltos:**
 1. `npm`/`pnpm` fallan al ejecutar scripts de instalación (`spawn EPERM`) → se instala con
@@ -148,8 +149,8 @@ Chrome, así que la verificación visual es un PNG generado por Node.
    renderizada**; el lienzo y la física sí. Para mirarla hay que abrir
    `http://127.0.0.1:5173` en el navegador del escritorio.
 5. **El Kotlin no se puede compilar aquí** (no hay JDK ni SDK de Android, y `gradle` necesitaría
-   subprocesos que el sandbox deniega). Se escribe y se revisa con análisis estático; la primera
-   compilación real será la de GitHub Actions en F8.
+   subprocesos que el sandbox deniega). Se escribió y revisó con análisis estático; la primera
+   compilación real fue la de GitHub Actions y salió a la primera (F8, 98 s, doce etapas verdes).
 
 ---
 
@@ -350,22 +351,39 @@ El APK no lleva motor propio (usa el WebView de la tablet), así que pesa menos 
    disco sale, la aguja baja, el arrastre hacia atrás rebota (0,007 rad) sin seek fantasma,
    llevarla a la galleta salta de canción y un salto empujado desde la capa nativa cambia el disco.
 
-**Lo que sigue sin poder afirmarse:** que compile. Eso lo dice el primer `push` a GitHub
-(F8), no este PC.
+**Lo que no se pudo afirmar aquí:** que compilara. Lo dijo el primer `push` a GitHub (F8): compiló.
 
 **Aceptación:** con Spotify real sonando, el vinilo gira y el freno con el dedo pausa
 Spotify de verdad; con YouTube, igual. *(Pendiente de la primera sesión en la tablet: F8.)*
 
-### F8 · APK en la nube
-- [ ] `build-apk.yml`: instala, compila la interfaz, genera el proyecto Android, inyecta Kotlin, `assembleDebug`
-- [ ] Artefacto `app-debug.apk` descargable desde Actions
+### F8 · APK en la nube — ✅ cerrada
+- [x] `build-apk.yml`: instala, compila la interfaz, copia los assets, revisa el contrato, `assembleDebug`
+- [x] Artefacto `spindisk-apk` descargable desde Actions
 - [ ] Instalación en la tablet y primera sesión real
-- [ ] Instrucciones de instalación (WhatsApp / Drive / cable)
+- [x] Instrucciones de instalación (WhatsApp / Drive / cable) en `docs/apk.md`
 
-**Aceptación:** un `git push` produce un APK instalable sin instalar nada en el PC.
+**Aceptación cumplida el 27 de octubre de 2026, en el primer intento.** `git push` disparó el
+flujo y terminó en **98 segundos**, con las doce etapas en verde (dependencias, tipos, web y
+assets, contrato nativo, Java 17, Gradle, versiones, `assembleDebug` y subida del artefacto):
+
+- ejecución: <https://github.com/Ynnoil1211/SpinDisk/actions/runs/40427965945> · `completed / success`
+- artefacto: **`spindisk-apk` · 0,83 MB comprimido** (expira el 25 de enero de 2027)
+- commit compilado: `1b45cb6`, el mismo que tenía el árbol local — no hubo que tocar nada del
+  Kotlin ni del Gradle que se escribieron a ciegas
+
+Que compilara a la primera no era suerte: el contrato está verificado por análisis estático
+(30/30), el puente por un doble del JavaScript nativo (29/29) y las tres revisiones a mano del
+Kotlin encontraron y corrigieron los tres fallos que habrían roto el build o la sesión (las
+llamadas a `startActivity` desde el hilo del WebView, el `openSource` que ignoraba el modo
+ventana flotante y el token de la portada con caracteres escapables).
+
+**Lo que sigue pendiente de esta fase:** instalar el APK en la tablet Lenovo y comprobar que ve
+Spotify. El peso ya se sabe y está muy por debajo del presupuesto: **0,83 MB** frente a los
+15 MB de la especificación.
+
 
 ### F9 · Medición y ajuste
-- [ ] Peso real del APK y de los datos
+- [x] Peso real del APK y de los datos (**0,83 MB** el artefacto, 169 KB de assets)
 - [ ] RAM en reposo, en reproducción y en modo reloj
 - [ ] Consumo de batería en una sesión de 3 horas
 - [x] Perfilado de dibujo: qué se cachea y qué se redibuja
@@ -487,17 +505,20 @@ funcionará igual sin él (modo adorno con reloj).
 
 ## 11. Próximo paso propuesto
 
-**F8 · APK en la nube.** El shell nativo ya está escrito y su contrato verificado por los dos
-lados; lo que falta es que exista un artefacto. El repositorio ya existe
-(`github.com/Ynnoil1211/SpinDisk`) y su primer commit sólo trae el `README.md`; el trabajo es
-subir el árbol completo, dejar que el workflow (`.github/workflows/build-apk.yml`) intente la
-primera compilación real de Kotlin del proyecto y leer el registro con calma —versiones del
-plugin de Android, nombre de la tarea Gradle, ruta del SDK, `exported` en el manifiesto—. Si
-falla, se corrige con el mensaje del runner delante, no a ciegas.
+**F9 · instalar el APK en la tablet y medir.** F8 ya está cerrada: el árbol se subió y el flujo
+compiló a la primera (ejecución 40427965945, 98 s, artefacto `spindisk-apk` de 0,83 MB). Lo que
+queda de F9 no se puede hacer desde ningún PC:
 
-Después: **F9 medición** en la tablet (memoria, tamaño instalado, repintados en reposo, batería
-en tres horas) y ajuste fino. El perfilado de dibujo ya está hecho en este PC y el reposo bajó
-de 47 ms a 1,1 ms cacheando el fajín de la hora; lo que queda de F9 no se puede medir sin un
-APK instalado. La deuda pendiente de F5 —contar los repintados reales en el navegador— entra
-también en F9, y el `push` sigue siendo la primera acción que necesita tu mano.
+1. Descargar el artefacto y pasar el `app-debug.apk` a la tablet.
+2. Instalarlo y conceder **acceso a las notificaciones** (el aviso de la propia app lleva al
+   ajuste); sin eso la mesa se queda vacía.
+3. Poner Spotify a sonar y comprobar que el vinilo gira, que el freno con el dedo pausa de
+   verdad y que en Free el brazo rebota sin desincronizarse.
+4. Medir con `adb shell dumpsys meminfo com.spindisk.tablet` en los tres estados (reproducción,
+   reposo, reloj) y anotar el peso instalado real; después, una sesión de tres horas para la
+   batería.
+
+Lo que salga de ahí decide el ajuste de F9: si la RAM se pasa de 60 MB, el primer candidato es el
+modo «dibujo plano» (sin `clearRect` del lienzo completo ni pilas de transformación por pieza)
+que ya está descrito en §8.
 

@@ -26,7 +26,9 @@ const scenario = (process.argv[2] ?? 'desk').toLowerCase();
 const LINER = new Set(['liner', 'nolyrics', 'instrumental', 'flipmid']);
 /** El reloj de día (la hora mientras suena) es la fase F5. */
 const CLOCK = new Set(['clocktag']);
-const prefix = LINER.has(scenario) ? 'f4' : CLOCK.has(scenario) ? 'f5' : 'f1';
+/** Las cuatro texturas del selector de vinilo. */
+const TEXTURES = new Set(['marble', 'black', 'cream', 'glass']);
+const prefix = LINER.has(scenario) ? 'f4' : CLOCK.has(scenario) ? 'f5' : TEXTURES.has(scenario) ? 'f6' : 'f1';
 const outFile = path.resolve('docs/captures', `${prefix}-${scenario}.png`);
 const FAKE_FPS = 1000 / STEP;
 
@@ -140,6 +142,12 @@ if (scenario === 'clockback') {
   turntable.flipFrom = 1;
   turntable.flip = 1;
   turntable.flipAt = clock.now - 1000;
+}
+
+// Texturas del vinilo: las cuatro del selector, para mirarlas de cerca.
+if (TEXTURES.has(scenario)) {
+  turntable.setPreferences({ ...DEFAULT_PREFERENCES, discTexture: scenario });
+  tick(60);
 }
 
 // Reloj de día: la hora impresa en un papelito mientras la música suena.
