@@ -26,10 +26,15 @@ export interface DiscState {
 }
 
 const textureCache = new Map<string, HTMLCanvasElement>();
+const spinningCache = new Map<string, HTMLCanvasElement>();
+const shadowCache = new Map<string, HTMLCanvasElement>();
 const MAX_TEXTURES = 5;
 
 const textureKey = (state: DiscState): string =>
   `${state.texture}|${state.seed}|${state.palette.marbleBase}|${state.palette.marbleVein}`;
+
+const spinningKey = (state: DiscState): string =>
+  `${textureKey(state)}|${Math.round(state.r)}|${state.title}|${state.artist}|${state.album}|${state.rpm}|${state.side}|${state.palette.labelPaper}|${state.palette.labelInk}`;
 
 const marbleColors = (palette: Palette) => ({
   base: palette.marbleBase,
@@ -42,7 +47,7 @@ const getTexture = (state: DiscState): HTMLCanvasElement => {
   const key = textureKey(state);
   const cached = textureCache.get(key);
   if (cached) return cached;
-  const canvas = makeMarbleTexture(marbleColors(state.palette), 512, state.seed + 1, state.texture);
+  const canvas = makeMarbleTexture(marbleColors(state.palette), 384, state.seed + 1, state.texture);
   if (textureCache.size >= MAX_TEXTURES) {
     const oldest = textureCache.keys().next().value;
     if (oldest) textureCache.delete(oldest);
@@ -51,17 +56,20 @@ const getTexture = (state: DiscState): HTMLCanvasElement => {
   return canvas;
 };
 
-export const clearTextureCache = (): void => textureCache.clear();
+export const clearTextureCache = (): void => {
+  textureCache.clear();
+  spinningCache.clear();
+};
 
 /** Capa fija: surcos, bisel y reflejo especular. No rota. */
 const overlayCache = new Map<string, HTMLCanvasElement>();
 
-const getOverlay = (radius: number, palette: Palette, kind: DiscTexture): HTMLCanvasElement => {
-  const key = `${Math.round(radius)}|${kind}|${palette.marbleDark}`;
+const getOverlay = (radius: number, kind: DiscTexture): HTMLCanvasElement => {
+  const key = `${Math.round(radius)}|${kind}`;
   const cached = overlayCache.get(key);
   if (cached) return cached;
 
-  const size = Math.ceil(radius * 2 * 2); // 2× para pantallas densas
+  const size = Math.ceil(radius * 2 * 1.5);
   const surface = makeSurface(size, size);
   const { ctx } = surface;
   const c = size / 2;
@@ -119,7 +127,7 @@ const getOverlay = (radius: number, palette: Palette, kind: DiscTexture): HTMLCa
   ctx.stroke();
   ctx.restore();
 
-  if (overlayCache.size > 3) {
+  if (overlayCache.size > 4) {
     const oldest = overlayCache.keys().next().value;
     if (oldest) overlayCache.delete(oldest);
   }
@@ -134,19 +142,38 @@ export const drawDiscShadow = (
   r: number,
   palette: Palette,
 ): void => {
-  ctx.save();
-  ctx.translate(cx + r * 0.06, cy + r * 0.08);
-  ctx.scale(1, 0.97);
-  const grad = ctx.createRadialGradient(0, 0, r * 0.55, 0, 0, r * 1.08);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(0.62, hexToRgba(palette.shadow, 0.35));
-  grad.addColorStop(0.9, hexToRgba(palette.shadow, 0.6));
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 1.08, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  const key = `${Math.round(r)}|${palette.shadow}`;
+  let sprite = shadowCache.get(key);
+  const extent = Math.ceil(r * 1.1);
+  if (!sprite) {
+    const size = extent * 2;
+    const surface = makeSurface(size, size);
+    const sctx = surface.ctx;
+    sctx.translate(extent, extent);
+    sctx.scale(1, 0.97);
+    const grad = sctx.createRadialGradient(0, 0, r * 0.55, 0, 0, r * 1.08);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(0.62, hexToRgba(palette.shadow, 0.35));
+    grad.addColorStop(0.9, hexToRgba(palette.shadow, 0.6));
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    sctx.fillStyle = grad;
+    sctx.beginPath();
+    sctx.arc(0, 0, r * 1.08, 0, Math.PI * 2);
+    sctx.fill();
+    if (shadowCache.size > 4) {
+      const oldest = shadowCache.keys().next().value;
+      if (oldest) shadowCache.delete(oldest);
+    }
+    sprite = surface.canvas;
+    shadowCache.set(key, sprite);
+  }
+  ctx.drawImage(
+    sprite,
+    cx + r * 0.06 - extent,
+    cy + r * 0.08 - extent,
+    extent * 2,
+    extent * 2,
+  );
 };
 
 const hexToRgba = (color: string, alpha: number): string => {
@@ -245,15 +272,24 @@ const drawLabel = (ctx: CanvasRenderingContext2D, state: DiscState): void => {
   ctx.restore();
 };
 
-export const drawDisc = (ctx: CanvasRenderingContext2D, state: DiscState): void => {
-  const { cx, cy, r } = state;
+/**
+ * Pre-renderiza el cuerpo circular del disco junto con la galleta central.
+ * Al girar el vinilo a 60 FPS sólo se rota este sprite con un `drawImage`,
+ * evitando ejecutar `clip()`, gradientes y 80 `fillText` curvos en cada frame.
+ */
+const getSpinningDisc = (state: DiscState): HTMLCanvasElement => {
+  const key = spinningKey(state);
+  const cached = spinningCache.get(key);
+  if (cached) return cached;
+
+  const { r } = state;
   const texture = getTexture(state);
+  const surface = makeSurface(r * 2, r * 2, 1.5);
+  const { ctx } = surface;
 
   ctx.save();
-  ctx.globalAlpha = state.opacity;
-  ctx.translate(cx, cy);
+  ctx.translate(r, r);
 
-  // Cuerpo.
   ctx.save();
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -261,21 +297,12 @@ export const drawDisc = (ctx: CanvasRenderingContext2D, state: DiscState): void 
   if (state.texture === 'glass') {
     ctx.fillStyle = 'rgba(228,236,238,0.55)';
     ctx.fillRect(-r, -r, r * 2, r * 2);
-    ctx.globalAlpha = state.opacity * 0.8;
+    ctx.globalAlpha = 0.8;
   }
-  ctx.rotate(state.spin);
-  ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(texture, -r, -r, r * 2, r * 2);
   ctx.restore();
 
-  // Galleta.
-  ctx.save();
-  ctx.rotate(state.spin);
   drawLabel(ctx, state);
-  ctx.restore();
-
-  // Capa fija de surcos y luz.
-  ctx.drawImage(getOverlay(r, state.palette, state.texture), -r, -r, r * 2, r * 2);
 
   // Borde exterior.
   ctx.beginPath();
@@ -283,6 +310,33 @@ export const drawDisc = (ctx: CanvasRenderingContext2D, state: DiscState): void 
   ctx.strokeStyle = 'rgba(255,252,244,0.18)';
   ctx.lineWidth = 1;
   ctx.stroke();
+
+  ctx.restore();
+
+  if (spinningCache.size >= MAX_TEXTURES) {
+    const oldest = spinningCache.keys().next().value;
+    if (oldest) spinningCache.delete(oldest);
+  }
+  spinningCache.set(key, surface.canvas);
+  return surface.canvas;
+};
+
+export const drawDisc = (ctx: CanvasRenderingContext2D, state: DiscState): void => {
+  const { cx, cy, r } = state;
+  const spinning = getSpinningDisc(state);
+  const overlay = getOverlay(r, state.texture);
+
+  ctx.save();
+  ctx.globalAlpha = state.opacity;
+  ctx.translate(cx, cy);
+
+  ctx.save();
+  ctx.rotate(state.spin);
+  ctx.drawImage(spinning, -r, -r, r * 2, r * 2);
+  ctx.restore();
+
+  // Capa fija de surcos y luz.
+  ctx.drawImage(overlay, -r, -r, r * 2, r * 2);
 
   ctx.restore();
 };

@@ -88,7 +88,7 @@ object MediaHub {
                     bitmap
                 }
                 val out = ByteArrayOutputStream()
-                if (!scaled.compress(Bitmap.CompressFormat.PNG, 92, out)) return null
+                if (!scaled.compress(Bitmap.CompressFormat.JPEG, 88, out)) return null
                 out.toByteArray()
             }.getOrElse { error ->
                 Log.w(TAG, "No se pudo preparar la portada: ${error.message}")

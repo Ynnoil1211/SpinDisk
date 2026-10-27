@@ -10,6 +10,7 @@ import { clamp, formatTime } from '../util/math.js';
 export interface PanelHandlers {
   onPreferences: (prefs: Preferences) => void;
   notify: (message: string) => void;
+  onPanelMotion?: (openAmount: number, heightPx: number, dragging: boolean) => void;
 }
 
 const SOURCE_LABEL: Record<SourceApp, string> = {
@@ -258,6 +259,7 @@ export class ConsolePanel {
       this.swipeDelta = dy;
       this.root.style.transform = `translateY(${dy.toFixed(0)}px)`;
       this.root.style.opacity = String(Math.max(0.3, 1 - dy / 300));
+      this.emitMotion(true);
     });
 
     const drop = (): void => {
@@ -267,8 +269,12 @@ export class ConsolePanel {
       this.swipeDelta = 0;
       this.root.style.transform = '';
       this.root.style.opacity = '';
-      if (travelled > HIDE_SWIPE) this.close();
-      else this.arm();
+      if (travelled > HIDE_SWIPE) {
+        this.close();
+      } else {
+        this.emitMotion(false);
+        this.arm();
+      }
     };
     this.root.addEventListener('pointerup', drop);
     this.root.addEventListener('pointercancel', drop);
@@ -334,6 +340,7 @@ export class ConsolePanel {
     document.body.classList.add('has-panel');
     this.refresh();
     this.updateScrollHints();
+    this.emitMotion(false);
     this.arm();
   }
 
@@ -350,6 +357,7 @@ export class ConsolePanel {
     this.swipeDelta = 0;
     this.root.style.transform = '';
     this.root.style.opacity = '';
+    this.emitMotion(false);
     if (this.root.contains(document.activeElement)) {
       (document.activeElement as HTMLElement).blur();
     }
@@ -358,6 +366,12 @@ export class ConsolePanel {
   toggle(): void {
     if (this.isOpen) this.close();
     else this.open();
+  }
+
+  private emitMotion(dragging: boolean): void {
+    const h = (this.root.offsetHeight || 116) + 16;
+    const amount = !this.isOpen ? 0 : clamp(1 - this.swipeDelta / 120, 0, 1);
+    this.handlers.onPanelMotion?.(amount, h, dragging);
   }
 
   /** Reinicia la cuenta atrás de 3 s. */

@@ -29,7 +29,7 @@ import { SANS, SERIF } from '../theme/fonts.js';
  * en una zona despejada que no cubre la carátula, las letras, el vinilo,
  * el soporte de descanso del brazo, ni el panel inferior desplegable.
  */
-const CLOCK_CARD = { x: 1115, y: 620, w: 176, h: 64, angle: 0.02 };
+const CLOCK_CARD = { x: 1138, y: 716, w: 196, h: 66, angle: 0.018 };
 /** Margen del sprite para que quepa la sombra difusa. */
 const CLOCK_PAD = 24;
 
@@ -63,6 +63,12 @@ export class Scene {
   private clockCardKey = '';
   private clockBand: HTMLCanvasElement | null = null;
   private clockBandKey = '';
+  /** Desplazamiento dinámico (0..1) sincronizado con la apertura del panel inferior. */
+  private panelLift = 0;
+  private panelTarget = 0;
+  private panelDragging = false;
+  private panelHeightPx = 132;
+  private lastRenderAt = 0;
 
   constructor(canvas: HTMLCanvasElement, turntable: Turntable) {
     this.canvas = canvas;
@@ -83,7 +89,15 @@ export class Scene {
   }
 
   get isTransitioning(): boolean {
-    return this.prevFront !== null;
+    return this.prevFront !== null || Math.abs(this.panelLift - this.panelTarget) > 0.002;
+  }
+
+  /** Sincroniza la posición del reloj con la apertura o arrastre del panel. */
+  setPanelState(openAmount: number, heightPx = 132, dragging = false): void {
+    this.panelTarget = Math.max(0, Math.min(1, openAmount));
+    if (heightPx > 0) this.panelHeightPx = heightPx;
+    this.panelDragging = dragging;
+    if (dragging) this.panelLift = this.panelTarget;
   }
 
   resize(): void {
@@ -121,6 +135,15 @@ export class Scene {
   }
 
   render(now: number): void {
+    const dt = this.lastRenderAt > 0 ? Math.min(0.05, Math.max(0.001, (now - this.lastRenderAt) / 1000)) : 0.016;
+    this.lastRenderAt = now;
+    if (this.panelDragging) {
+      this.panelLift = this.panelTarget;
+    } else {
+      const step = 1 - Math.exp(-dt / 0.11);
+      this.panelLift += (this.panelTarget - this.panelLift) * step;
+      if (Math.abs(this.panelLift - this.panelTarget) < 0.001) this.panelLift = this.panelTarget;
+    }
     const tt = this.turntable;
     const ctx = this.ctx;
     const palette = tt.palette;
@@ -323,17 +346,14 @@ export class Scene {
     // Reflejo que barre la cara mientras gira: el cartón mate no lo daría,
     // pero es lo que vende el movimiento en una pantalla.
     if (lift > 0.05) {
-      ctx.save();
-      roundRectPath(ctx, -size / 2, -size / 2, size, size, 3);
-      ctx.clip();
       const sweep = -size + flip * size * 2;
       const sheen = ctx.createLinearGradient(sweep - size * 0.3, -size / 2, sweep + size * 0.3, size / 2);
       sheen.addColorStop(0, 'rgba(255,248,232,0)');
       sheen.addColorStop(0.5, `rgba(255,248,232,${0.16 * lift})`);
       sheen.addColorStop(1, 'rgba(255,248,232,0)');
       ctx.fillStyle = sheen;
-      ctx.fillRect(-size / 2, -size / 2, size, size);
-      ctx.restore();
+      roundRectPath(ctx, -size / 2, -size / 2, size, size, 3);
+      ctx.fill();
     }
     ctx.restore();
 
@@ -406,24 +426,24 @@ export class Scene {
     ctx.fillRect(-6.5, -6.4, 13, 1.2);
     ctx.restore();
 
-    // Sombra del brazo sobre el disco.
-    if (lift < 0.5) {
+    // Sombra del brazo sobre el disco (sin clip circular de pantalla completa).
+    if (lift < 0.5 && tt.discOut > 0.65) {
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(tt.discX, LAYOUT.disc.cy, LAYOUT.disc.r, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.globalAlpha = 0.30 * (1 - lift * 2);
+      ctx.globalAlpha = 0.28 * (1 - lift * 2);
       ctx.strokeStyle = '#2a2016';
       ctx.lineWidth = 9;
       ctx.lineCap = 'round';
+      const ctrlX = (px + tip.x) / 2 - Math.sin(angle) * 6;
+      const ctrlY = (py + tip.y) / 2 + Math.cos(angle) * 6;
+      const t0 = 0.38;
+      const inv = 1 - t0;
+      const sx0 = inv * inv * px + 2 * inv * t0 * ctrlX + t0 * t0 * tip.x;
+      const sy0 = inv * inv * py + 2 * inv * t0 * ctrlY + t0 * t0 * tip.y;
+      const scx = inv * ctrlX + t0 * tip.x;
+      const scy = inv * ctrlY + t0 * tip.y;
       ctx.beginPath();
-      ctx.moveTo(px + 9, py + 12);
-      ctx.quadraticCurveTo(
-        (px + tip.x) / 2 + 9 - Math.sin(angle) * 6,
-        (py + tip.y) / 2 + 12 + Math.cos(angle) * 6,
-        tip.x + 9,
-        tip.y + 12,
-      );
+      ctx.moveTo(sx0 + 9, sy0 + 12);
+      ctx.quadraticCurveTo(scx + 9, scy + 12, tip.x + 9, tip.y + 12);
       ctx.stroke();
       ctx.restore();
     }
@@ -556,12 +576,9 @@ export class Scene {
     ctx.restore();
 
     // Sombra de la aguja sobre el surco.
-    if (lift < 0.25) {
+    if (lift < 0.25 && tt.discOut > 0.8) {
       ctx.save();
       ctx.globalAlpha = 1 - lift * 4;
-      ctx.beginPath();
-      ctx.arc(tt.discX, LAYOUT.disc.cy, LAYOUT.disc.r, 0, Math.PI * 2);
-      ctx.clip();
       const g = ctx.createRadialGradient(needle.x + 4, needle.y + 6, 1, needle.x + 4, needle.y + 6, 11);
       g.addColorStop(0, 'rgba(20,14,8,0.45)');
       g.addColorStop(1, 'rgba(20,14,8,0)');
@@ -587,12 +604,12 @@ export class Scene {
     const { time, date } = formatClock(new Date(Date.now()));
     const top = size - size * 0.226 - size * 0.052;
     const height = size - top;
-    const key = `${time}|${date}|${palette.paper}|${palette.labelInk}|${size}`;
+    const key = `${time}|${date}|${palette.paper}|${palette.labelInk}|${size}|${tt.phraseIndex}`;
 
     if (key !== this.clockBandKey || !this.clockBand) {
       const band = makeSurface(size, height, 2);
       band.ctx.translate(0, -top);
-      drawSleeveClock(band.ctx, size, palette, 1, time, date);
+      drawSleeveClock(band.ctx, size, palette, 1, time, date, tt.phraseIndex);
       this.clockBand = band.canvas;
       this.clockBandKey = key;
     }
@@ -629,11 +646,34 @@ export class Scene {
     }
     if (!this.clockCard) return;
 
+    // Anclaje relativo al borde visible real de la pantalla para que jamás se
+    // corte en tablets donde el escalado recorta ligeramente los laterales.
+    const visibleRight = this.scale > 0
+      ? Math.min(DESIGN.width, (this.width - this.ox) / this.scale)
+      : DESIGN.width;
+    const visibleBottom = this.scale > 0
+      ? Math.min(DESIGN.height, (this.height - this.oy) / this.scale)
+      : DESIGN.height;
+
+    const marginX = 22;
+    const marginY = 20;
+    const x = Math.min(CLOCK_CARD.x, visibleRight - CLOCK_CARD.w / 2 - marginX);
+    const closedY = Math.min(CLOCK_CARD.y, visibleBottom - CLOCK_CARD.h / 2 - marginY);
+
+    // Cuando el panel inferior se abre o se arrastra, el reloj rueda hacia arriba
+    // al mismo tiempo para posarse sobre el borde superior derecho de la consola.
+    const panelTopDesign = this.scale > 0
+      ? (this.height - this.panelHeightPx - this.oy) / this.scale
+      : DESIGN.height - 134;
+    const openY = Math.max(586, Math.min(closedY, panelTopDesign - CLOCK_CARD.h / 2 - 14));
+    const y = closedY + (openY - closedY) * this.panelLift;
+    const angle = CLOCK_CARD.angle * (1 - this.panelLift * 0.65);
+
     const ctx = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.translate(CLOCK_CARD.x, CLOCK_CARD.y);
-    ctx.rotate(CLOCK_CARD.angle);
+    ctx.translate(x, y);
+    ctx.rotate(angle);
     ctx.drawImage(
       this.clockCard,
       -CLOCK_CARD.w / 2 - CLOCK_PAD,
@@ -684,10 +724,25 @@ export class Scene {
     ctx.lineTo(pad + w - 14, ruleY);
     ctx.stroke();
 
-    ctx.fillStyle = 'rgba(58,44,30,0.72)';
-    ctx.font = `500 ${Math.max(9, Math.round(h * 0.13))}px ${SANS}`;
-    if ('letterSpacing' in ctx) ctx.letterSpacing = '0.12em';
-    ctx.fillText(date.toUpperCase(), pad + 14, pad + h * 0.86);
+    // Auto-ajuste de la fecha para que meses largos ("SEPTIEMBRE", "OCTUBRE")
+    // entren siempre completos dentro de la tarjeta sin cortarse.
+    const dateUpper = date.toUpperCase();
+    const maxDateW = w - 28;
+    let dateFontSize = Math.max(9.5, Math.round(h * 0.145));
+    ctx.fillStyle = 'rgba(58,44,30,0.75)';
+    ctx.font = `500 ${dateFontSize}px ${SANS}`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0.09em';
+    let measured = ctx.measureText(dateUpper).width;
+    if (measured > maxDateW && 'letterSpacing' in ctx) {
+      ctx.letterSpacing = '0.03em';
+      measured = ctx.measureText(dateUpper).width;
+    }
+    if (measured > maxDateW) {
+      dateFontSize = Math.max(8, dateFontSize * (maxDateW / measured));
+      ctx.font = `500 ${dateFontSize}px ${SANS}`;
+    }
+    ctx.fillText(dateUpper, pad + 14, pad + h * 0.86, maxDateW);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
     ctx.restore();
 
     ctx.save();

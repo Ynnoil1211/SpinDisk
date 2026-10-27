@@ -41,6 +41,10 @@ const panel = new ConsolePanel(consoleEl, turntable, preferences, {
     savePreferences(prefs);
   },
   notify,
+  onPanelMotion: (openAmount, heightPx, dragging) => {
+    scene.setPanelState(openAmount, heightPx, dragging);
+    kick();
+  },
 });
 const sandbox = native
   ? null
@@ -85,10 +89,19 @@ canvas.addEventListener('pointerdown', (event) => {
   const { x, y } = toDesign(event);
 
   const target = hitTest(x, y, turntable.armAngle);
+  const edge = isPanelEdge(event.clientX, event.clientY, window.innerHeight);
+
+  // En modo reloj, sólo los bordes extremos invocan la consola; tocar donde iba
+  // originalmente el vinilo, la funda o el plato despierta y despausa la música.
+  if (turntable.clock > 0.05 && !edge) {
+    if (panel.isOpen) panel.close();
+    turntable.pointerDown(target, x, y);
+    kick();
+    return;
+  }
 
   // El borde inferior, la esquina o la mesa vacía abren la consola. Se mira en
   // píxeles de pantalla porque el diseño se recorta en pantallas anchas.
-  const edge = isPanelEdge(event.clientX, event.clientY, window.innerHeight);
   const action = decideTap(edge, target === 'none', panel.isOpen);
   if (action === 'open') {
     panel.open();
@@ -143,6 +156,9 @@ canvas.addEventListener('pointerup', (event) => {
 });
 canvas.addEventListener('pointercancel', (event) => {
   if (activePointer === event.pointerId) endGesture(event);
+});
+canvas.addEventListener('lostpointercapture', (event) => {
+  if (activePointer === event.pointerId) activePointer = null;
 });
 
 document.addEventListener('contextmenu', (event) => event.preventDefault());
@@ -252,13 +268,14 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// La consola se refresca sola mientras exista algo que contar.
+// La consola sólo actualiza el DOM cuando está abierta: mientras está oculta
+// no gasta presupuesto de estilo ni diseño.
 window.setInterval(() => {
   if (document.hidden) return;
   const now = performance.now();
   if (now - lastPanelSync < 190) return;
   lastPanelSync = now;
-  panel.refresh();
+  if (panel.isOpen) panel.refresh();
   sandbox?.sync();
 }, 120);
 

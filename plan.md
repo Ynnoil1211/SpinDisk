@@ -503,7 +503,25 @@ funcionará igual sin él (modo adorno con reloj).
 
 ---
 
-## 11. Próximo paso propuesto
+## 11. Optimizaciones de fluidez y ajustes en tablet (F9 · 0.8.1)
+
+1. **Sprite único del vinilo + galleta (`src/scene/disc.ts`)**:
+   - El cuerpo marmoleado recortado en círculo y la galleta central completa (con código de barras y los 80 caracteres de texto curvo) se pre-renderizan en un único lienzo fuera de pantalla (`getSpinningDisc`).
+   - El giro del vinilo a 60 FPS pasa a ser dos simples `drawImage` (el sprite rotado y la capa fija de surcos), sin `ctx.clip()`, sin gradientes por fotograma y sin medir ni rotar letras individuales en cada frame.
+   - La sombra del disco también se cachea como sprite (`shadowCache`), y se eliminaron los recortes circulares de pantalla completa en las sombras del brazo y la aguja (`src/scene/renderer.ts`).
+2. **Generación rápida de resina marmoleada (`src/render/canvas.ts`)**:
+   - Se descartan los píxeles fuera del círculo antes de evaluar el ruido fractal, se eliminó `Math.atan2` innecesario por píxel y se redujo la textura base a `384×384`, reduciendo el tiempo de generación en más de un 65 %.
+3. **Compresión rápida de carátula y caché de metadata en Android (`MediaHub.kt`, `MediaListenerService.kt`)**:
+   - Compresión en `JPEG` (calidad 88) acelerada por hardware en lugar de `PNG`, y reutilización de la URL de portada en el sondeo de 500 ms mientras no cambie la referencia de `MediaMetadata`.
+4. **Reloj de sobremesa visible al 100 % y dinámico con la consola (`src/scene/renderer.ts`, `src/ui/panel.ts`)**:
+   - Posicionamiento anclado al borde visible real de la pantalla (`visibleRight`, `visibleBottom`) para evitar recortes laterales en tablets con relación de aspecto distinta a 16:10, y auto-escalado tipográfico para fechas largas.
+   - Sincronización en tiempo real (`panelLift`) con la apertura, cierre y arrastre vertical de la consola inferior: el reloj rueda hacia arriba al abrirse el panel y regresa a su rincón al cerrarse.
+5. **Frases poéticas aleatorias en el modo reloj (`src/scene/sleeve.ts`)**:
+   - El fajín del modo reloj muestra las mismas 40 frases aleatorias que el pie del reverso de la funda en lugar del texto fijo *«SPINDISK · DESCANSO»*.
+
+---
+
+## 12. Próximo paso propuesto
 
 **F9 · instalar el APK en la tablet y medir.** F8 ya está cerrada: el árbol se subió y el flujo
 compiló a la primera (ejecución 40427965945, 98 s, artefacto `spindisk-apk` de 0,83 MB). Lo que

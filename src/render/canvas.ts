@@ -256,14 +256,17 @@ export const makeMarbleTexture = (
   };
 
   const half = size / 2;
+  const invHalf = 1 / half;
   for (let py = 0; py < size; py++) {
+    const ny = (py - half) * invHalf;
+    const nySq = ny * ny;
+    const v = ny * 2.2 + 4.7;
     for (let px = 0; px < size; px++) {
-      const nx = (px - half) / half;
-      const ny = (py - half) / half;
-      const r = Math.sqrt(nx * nx + ny * ny);
-      const angle = Math.atan2(ny, nx);
+      const nx = (px - half) * invHalf;
+      const rSq = nx * nx + nySq;
+      if (rSq > 1.04) continue;
+      const r = Math.sqrt(rSq);
       const u = nx * 2.2 + 9.3;
-      const v = ny * 2.2 + 4.7;
 
       let r0: number;
       let g0: number;
@@ -271,14 +274,14 @@ export const makeMarbleTexture = (
 
       if (kind === 'black') {
         const sheen = Math.max(0, 1 - Math.abs(r - 0.62) * 9) * 0.5;
-        const fine = fbm(px / 12, py / 12) * 0.10;
+        const fine = noise(px / 12, py / 12) * 0.10;
         const value = 12 + sheen * 46 + fine * 60;
         r0 = value;
         g0 = value * 0.99;
         b0 = value * 0.97;
       } else if (kind === 'cream') {
         const mottle = fbm(px / 26, py / 26);
-        const fleck = fbm(px / 4, py / 4);
+        const fleck = noise(px / 4, py / 4);
         const t = mottle * 0.7 + fleck * 0.3;
         r0 = 232 + (t - 0.5) * 34;
         g0 = 220 + (t - 0.5) * 40;
@@ -312,7 +315,7 @@ export const makeMarbleTexture = (
           cb = vein.b + (light.b - vein.b) * k;
         }
 
-        const speckle = (fbm(px / 2.6, py / 2.6) - 0.5) * 9;
+        const speckle = (noise(px / 2.6, py / 2.6) - 0.5) * 9;
         const rim = Math.max(0, 1 - Math.abs(r - 0.995) * 40) * 12;
         r0 = cr + speckle + rim;
         g0 = cg + speckle + rim;
@@ -324,8 +327,6 @@ export const makeMarbleTexture = (
       data[index + 1] = g0;
       data[index + 2] = b0;
       data[index + 3] = 255;
-      // Las vetas se ensanchan en el ángulo: rompe la simetría perfecta.
-      void angle;
     }
   }
   ctx.putImageData(image, 0, 0);

@@ -466,6 +466,7 @@ export const drawSleeveClock = (
   alpha: number,
   time: string,
   date: string,
+  phraseIndex = 0,
 ): void => {
   if (alpha <= 0.01) return;
   ctx.save();
@@ -510,29 +511,34 @@ export const drawSleeveClock = (
   }
 
   // Hora a la izquierda, en serif viejo.
-  const baseline = bandY + bandH * 0.575;
+  const baseline = bandY + bandH * 0.55;
   ctx.textAlign = 'left';
   ctx.fillStyle = palette.labelInk;
-  ctx.font = `400 ${size * 0.108}px ${SERIF}`;
+  ctx.font = `400 ${size * 0.104}px ${SERIF}`;
   ctx.fillText(time, pad, baseline);
 
-  ctx.fillStyle = hsl(30, 0.18, 0.40);
-  ctx.font = `italic ${size * 0.0215}px ${SERIF}`;
-  ctx.fillText('el tocadiscos descansa', pad + size * 0.004, bandY + bandH * 0.845);
-
-  // Fecha y sello, a la derecha.
+  // Fecha a la derecha.
   ctx.textAlign = 'right';
   const right = size - pad;
   ctx.fillStyle = hsl(30, 0.22, 0.34);
-  ctx.font = `500 ${size * 0.0245}px ${SANS}`;
-  ctx.letterSpacing = `${size * 0.0035}px`;
-  ctx.fillText(date.toUpperCase(), right, bandY + bandH * 0.50);
-
-  ctx.fillStyle = hsl(30, 0.14, 0.50);
-  ctx.font = `400 ${size * 0.019}px ${SANS}`;
-  ctx.letterSpacing = `${size * 0.0045}px`;
-  ctx.fillText('SPINDISK · DESCANSO', right, bandY + bandH * 0.845);
+  ctx.font = `500 ${size * 0.0235}px ${SANS}`;
+  ctx.letterSpacing = `${size * 0.003}px`;
+  ctx.fillText(date.toUpperCase(), right, bandY + bandH * 0.48);
   ctx.letterSpacing = '0px';
+
+  // Frase poética aleatoria en la franja inferior del fajín.
+  const phrase = SLEEVE_PHRASES[Math.abs(phraseIndex) % SLEEVE_PHRASES.length] ?? SLEEVE_PHRASES[0];
+  const maxPhraseW = size - pad * 2;
+  let phraseFont = size * 0.0205;
+  ctx.font = `italic 500 ${phraseFont}px ${SERIF}`;
+  const measured = ctx.measureText(phrase).width;
+  if (measured > maxPhraseW) {
+    phraseFont = Math.max(9.5, phraseFont * (maxPhraseW / measured));
+    ctx.font = `italic 500 ${phraseFont}px ${SERIF}`;
+  }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = hsl(30, 0.18, 0.38);
+  ctx.fillText(phrase, size / 2, bandY + bandH * 0.845, maxPhraseW);
 
   ctx.restore();
 };

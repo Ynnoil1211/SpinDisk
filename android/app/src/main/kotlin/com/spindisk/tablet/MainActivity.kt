@@ -133,7 +133,7 @@ class MainActivity : Activity() {
                 )
                 return if (bytes == null || bytes.isEmpty()) {
                     WebResourceResponse(
-                        "image/png",
+                        "image/jpeg",
                         null,
                         404,
                         "Sin portada",
@@ -142,7 +142,7 @@ class MainActivity : Activity() {
                     )
                 } else {
                     WebResourceResponse(
-                        "image/png",
+                        "image/jpeg",
                         null,
                         200,
                         "OK",

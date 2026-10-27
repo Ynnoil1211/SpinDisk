@@ -29,6 +29,9 @@ class MediaListenerService : NotificationListenerService() {
     private val handler = Handler(Looper.getMainLooper())
     private var polling = false
     private var sessionToken: MediaSession.Token? = null
+    private var lastMetadata: MediaMetadata? = null
+    private var lastArtKey: String = ""
+    private var lastCoverUrl: String? = null
 
     private val callback = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadata?) {
@@ -150,9 +153,17 @@ class MediaListenerService : NotificationListenerService() {
         // Esta es la detección de capacidades que pide la especificación.
         val canSeek = state != null && (state.actions and PlaybackState.ACTION_SEEK_TO) != 0L
 
-        val artwork = artworkOf(metadata)
         val key = "$title|$artist|$album"
-        val coverUrl = MediaHub.artUrl(artwork, key)
+        val coverUrl = if (metadata === lastMetadata && key == lastArtKey && lastCoverUrl != null) {
+            lastCoverUrl
+        } else {
+            val artwork = artworkOf(metadata)
+            val url = MediaHub.artUrl(artwork, key)
+            lastMetadata = metadata
+            lastArtKey = key
+            lastCoverUrl = url
+            url
+        }
 
         val json = JSONObject().apply {
             put("id", key)

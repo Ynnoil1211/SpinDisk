@@ -98,6 +98,8 @@ export class Turntable {
   private lastCoverUrl: string | undefined;
   private revealAt = 0;
   private pausedAt = performance.now();
+  /** Ventana de gracia tras pedir play/wake para que un latido viejo de Android no pause de vuelta. */
+  private playIntentUntil = 0;
   private scrubbing = false;
   private scrubAngle = 0;
   private scrubStart = 0;
@@ -229,6 +231,7 @@ export class Turntable {
   /** Atajo del panel de pruebas: entra en modo reloj sin esperar el minuto. */
   forceClock(): void {
     this.clockForced = true;
+    this.phraseIndex = Math.floor(Math.random() * SLEEVE_PHRASES.length);
     this.pausedAt = performance.now() - CLOCK_AFTER;
     if (this.playing) this.bridge.pause();
     this.notify();
@@ -282,6 +285,12 @@ export class Turntable {
     this.canSeek = snapshot.canSeek;
 
     if (snapshot.isPlaying !== this.playing) {
+      // Si el usuario acaba de despertar o despausar desde el plato, el servicio
+      // de Android puede mandar todavía un latido con isPlaying=false mientras
+      // Spotify sale de pausa/buffering. Se respeta el gesto durante esa ventana.
+      if (!snapshot.isPlaying && this.playing && now < this.playIntentUntil) {
+        return;
+      }
       this.playing = snapshot.isPlaying;
       if (this.playing) {
         this.pausedAt = 0;
@@ -449,7 +458,7 @@ export class Turntable {
   pointerDown(target: 'disc' | 'label' | 'arm' | 'sleeve' | 'none', x: number, y: number): boolean {
     this.foley.unlock();
 
-    if (this.clock > 0.15) {
+    if (this.clock > 0.05 || this.clockForced) {
       this.wake();
       return true;
     }
@@ -470,6 +479,7 @@ export class Turntable {
       this.scrubStart = this.progress;
       this.scrubAngle = Math.atan2(y - LAYOUT.disc.cy, x - LAYOUT.disc.cx);
       if (this.playing) {
+        this.playIntentUntil = 0;
         void this.bridge.pause();
         this.playing = false;
         this.pausedAt = performance.now();
@@ -575,9 +585,11 @@ export class Turntable {
           this.stopCrackle();
           this.foley.switchClick(false);
         } else {
+          this.playIntentUntil = performance.now() + 1500;
           void this.bridge.play();
           this.playing = true;
           this.pausedAt = 0;
+          this.clockForced = false;
           this.foley.switchClick(true);
         }
         this.onChange?.();
@@ -590,6 +602,7 @@ export class Turntable {
       } else {
         this.progress = this.scrubStart;
       }
+      this.playIntentUntil = performance.now() + 1500;
       void this.bridge.play();
       this.playing = true;
       this.pausedAt = 0;
@@ -600,12 +613,16 @@ export class Turntable {
   }
 
   wake(): void {
+    const now = performance.now();
     this.clock = 0;
     this.clockForced = false;
+    this.pausedAt = now;
     if (this.track) {
+      this.playIntentUntil = now + 1500;
       void this.bridge.play();
       this.playing = true;
       this.pausedAt = 0;
+      this.foley.switchClick(true);
     }
     this.onChange?.();
   }
@@ -613,12 +630,14 @@ export class Turntable {
   togglePlay(): void {
     this.foley.unlock();
     if (this.playing) {
+      this.playIntentUntil = 0;
       void this.bridge.pause();
       this.playing = false;
       this.pausedAt = performance.now();
       this.stopCrackle();
       this.foley.switchClick(false);
     } else {
+      this.playIntentUntil = performance.now() + 1500;
       void this.bridge.play();
       this.playing = true;
       this.pausedAt = 0;

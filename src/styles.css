@@ -73,9 +73,7 @@ body.is-sleeping .edge-grip {
   padding: 12px 20px 12px 18px;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.55);
-  background: var(--panel);
-  backdrop-filter: blur(22px) saturate(1.15);
-  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  background: rgba(246, 239, 226, 0.92);
   box-shadow:
     0 22px 48px -18px rgba(58, 40, 22, 0.45),
     0 2px 0 rgba(255, 255, 255, 0.5) inset,
@@ -84,12 +82,16 @@ body.is-sleeping .edge-grip {
   opacity: 0;
   pointer-events: none;
   overflow: hidden;
+  will-change: transform, opacity;
   transition:
-    transform 0.46s var(--ease),
-    opacity 0.32s var(--ease);
+    transform 0.42s var(--ease),
+    opacity 0.28s var(--ease);
 }
 
 .console.is-open {
+  background: var(--panel);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
   transform: translateY(0);
   opacity: 1;
   pointer-events: auto;
@@ -196,7 +198,9 @@ body.is-sleeping .edge-grip {
   background: rgba(255, 255, 255, 0.42);
   color: var(--ink);
   cursor: pointer;
-  transition: transform 0.12s var(--ease), background 0.2s;
+  touch-action: manipulation;
+  will-change: transform;
+  transition: transform 0.1s var(--ease), background 0.16s;
 }
 
 .tbtn svg {
@@ -343,7 +347,9 @@ body.is-playing .tbtn--play .icon-play {
   border-radius: 50%;
   border: 1px solid rgba(58, 44, 30, 0.18);
   cursor: pointer;
-  transition: transform 0.14s var(--ease), box-shadow 0.2s;
+  touch-action: manipulation;
+  will-change: transform;
+  transition: transform 0.1s var(--ease), box-shadow 0.16s;
 }
 
 .swatch[data-texture="marble"] {
@@ -391,6 +397,7 @@ body.is-playing .tbtn--play .icon-play {
 }
 
 .switch button {
+  touch-action: manipulation;
   border: 0;
   padding: 0 11px;
   height: 26px;
