@@ -51,6 +51,8 @@ export class Scene {
   private sleeveShadowKey = '';
   private clockCard: HTMLCanvasElement | null = null;
   private clockCardKey = '';
+  private clockBand: HTMLCanvasElement | null = null;
+  private clockBandKey = '';
 
   constructor(canvas: HTMLCanvasElement, turntable: Turntable) {
     this.canvas = canvas;
@@ -300,16 +302,7 @@ export class Scene {
     // La hora se imprime sobre la cara que esté mirando: si la funda está
     // del revés (letra), el fajín también aparece, sin espejo y con el mismo
     // aplastamiento del giro. Un tocadiscos dormido no debe quedarse en negro.
-    if (tt.clock > 0.001) {
-      const squash = Math.abs(sx) || 0.0008;
-      const { time, date } = formatClock(new Date(Date.now()));
-      ctx.save();
-      ctx.translate(0, -lift * 4);
-      ctx.scale(squash, 1);
-      ctx.translate(-size / 2, -size / 2);
-      drawSleeveClock(ctx, size, palette, tt.clock, time, date);
-      ctx.restore();
-    }
+    if (tt.clock > 0.001) this.drawClockBand(size, palette, lift, sx);
 
     // Canto del cartón: cuando la funda está casi de perfil sólo se ve el
     // espesor del material, no una línea.
@@ -540,6 +533,40 @@ export class Scene {
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  // ------------------------------------------------- reloj de reposo (fajín)
+
+  /**
+   * El fajín con la hora se imprime **una vez por minuto** y se guarda como
+   * sprite. Dibujarlo entero en cada fotograma costaba 47 ms de CPU (medido a
+   * 2560×1600): justo el estado en el que la especificación pide no trabajar
+   * ni procesador ni tarjeta gráfica. Ahora dormido cuesta lo mismo que un
+   * `drawImage`.
+   */
+  private drawClockBand(size: number, palette: Palette, lift: number, sx: number): void {
+    const tt = this.turntable;
+    const { time, date } = formatClock(new Date(Date.now()));
+    const top = size - size * 0.226 - size * 0.052;
+    const height = size - top;
+    const key = `${time}|${date}|${palette.paper}|${palette.labelInk}|${size}`;
+
+    if (key !== this.clockBandKey || !this.clockBand) {
+      const band = makeSurface(size, height, 2);
+      band.ctx.translate(0, -top);
+      drawSleeveClock(band.ctx, size, palette, 1, time, date);
+      this.clockBand = band.canvas;
+      this.clockBandKey = key;
+    }
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(0, -lift * 4);
+    ctx.scale(Math.abs(sx) || 0.0008, 1);
+    ctx.translate(-size / 2, -size / 2);
+    ctx.globalAlpha = tt.clock;
+    ctx.drawImage(this.clockBand, 0, top, size, height);
+    ctx.restore();
   }
 
   // ---------------------------------------------------------- reloj de día
