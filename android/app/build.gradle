@@ -11,8 +11,8 @@ android {
         applicationId 'com.spindisk.tablet'
         minSdk 24
         targetSdk 34
-        versionCode 16
-        versionName '0.7.9'
+        versionCode 17
+        versionName '0.8.0'
         resourceConfigurations += ['es', 'en']
     }
 

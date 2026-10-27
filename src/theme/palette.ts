@@ -145,7 +145,7 @@ export const paletteFromImage = (img: HTMLImageElement): Palette => {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return defaultPalette();
+  if (!ctx || !img.naturalWidth || !img.naturalHeight) return defaultPalette();
 
   const scale = Math.max(size / img.naturalWidth, size / img.naturalHeight);
   const w = img.naturalWidth * scale;

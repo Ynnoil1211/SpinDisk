@@ -119,7 +119,7 @@ export const fetchLyrics = async (
       MEMORY_CACHE.set(key, parsed);
       return parsed;
     } catch {
-      localStorage.removeItem(key);
+      try { localStorage.removeItem(key); } catch { /* sin almacenamiento */ }
     }
   }
 

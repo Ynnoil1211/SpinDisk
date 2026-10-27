@@ -83,6 +83,7 @@ body.is-sleeping .edge-grip {
   transform: translateY(calc(100% + 60px));
   opacity: 0;
   pointer-events: none;
+  overflow: hidden;
   transition:
     transform 0.46s var(--ease),
     opacity 0.32s var(--ease);
@@ -94,11 +95,53 @@ body.is-sleeping .edge-grip {
   pointer-events: auto;
 }
 
+.console::before,
+.console::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 26px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.22s var(--ease);
+  z-index: 3;
+}
+
+.console::before {
+  left: 0;
+  background: linear-gradient(to right, var(--panel), transparent);
+}
+
+.console::after {
+  right: 0;
+  background: linear-gradient(to left, var(--panel), transparent);
+}
+
+.console.has-scroll-left::before {
+  opacity: 1;
+}
+
+.console.has-scroll-right::after {
+  opacity: 1;
+}
+
 .console__inner {
   display: flex;
   align-items: center;
   gap: 20px;
   min-height: 92px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+}
+
+.console__inner::-webkit-scrollbar {
+  display: none;
 }
 
 .console__grip {
@@ -113,6 +156,7 @@ body.is-sleeping .edge-grip {
 }
 
 .module {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -390,6 +434,7 @@ body.is-playing .tbtn--play .icon-play {
 /* ------------------------------------------------------------------- fuente */
 
 .source {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -781,5 +826,62 @@ body.is-playing .tbtn--play .icon-play {
   }
   .module--timeline {
     min-width: 104px;
+  }
+}
+
+
+/* Adaptación para pantallas de menor resolución y ventanas divididas */
+@media (max-width: 960px), (max-height: 640px) {
+  .console {
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    padding: 8px 16px 8px 14px;
+    border-radius: 18px;
+  }
+  .console__inner {
+    gap: 14px;
+    min-height: 76px;
+  }
+  .module {
+    gap: 6px;
+    padding-right: 14px;
+  }
+  .tbtn {
+    width: 34px;
+    height: 34px;
+  }
+  .tbtn--play {
+    width: 42px;
+    height: 42px;
+  }
+  .module--timeline {
+    flex: 0 0 220px;
+    min-width: 170px;
+  }
+  .swatch {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .console {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    padding: 6px 12px;
+  }
+  .console__inner {
+    gap: 10px;
+    min-height: 70px;
+  }
+  .module {
+    gap: 5px;
+    padding-right: 10px;
+  }
+  .module--timeline {
+    flex: 0 0 190px;
+    min-width: 150px;
   }
 }

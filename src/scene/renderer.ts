@@ -46,6 +46,10 @@ export class Scene {
 
   private front: HTMLCanvasElement | null = null;
   private frontKey = '';
+  /** Funda anterior y marca de tiempo para el fundido entre portadas. */
+  private prevFront: HTMLCanvasElement | null = null;
+  private prevCoverRef: HTMLImageElement | null = null;
+  private coverFadeAt = 0;
   private back: HTMLCanvasElement | null = null;
   private backKey = '';
   private sleeveShadow: HTMLCanvasElement | null = null;
@@ -67,8 +71,14 @@ export class Scene {
         this.frontKey = '';
         this.backKey = '';
         clearTextureCache();
+      } else if (reason === 'cover') {
+        this.frontKey = '';
       }
     };
+  }
+
+  get isTransitioning(): boolean {
+    return this.prevFront !== null;
   }
 
   resize(): void {
@@ -220,6 +230,11 @@ export class Scene {
     // Sprite frontal.
     const frontKey = `${tt.cover?.currentSrc ?? 'none'}|${palette.paper}|${tt.track?.title ?? ''}`;
     if (frontKey !== this.frontKey || !this.front) {
+      if (this.front && tt.cover !== this.prevCoverRef) {
+        this.prevFront = this.front;
+        this.coverFadeAt = performance.now();
+      }
+      this.prevCoverRef = tt.cover;
       this.front = makeSleeveFront(size, 2, palette, tt.cover, tt.track?.title ?? '', tt.track?.artist ?? '');
       this.frontKey = frontKey;
     }
@@ -279,7 +294,16 @@ export class Scene {
       }
       ctx.drawImage(this.back, -size / 2, -size / 2, size, size);
     } else {
-      ctx.drawImage(this.front, -size / 2, -size / 2, size, size);
+      const fade = this.prevFront ? Math.min(1, (performance.now() - this.coverFadeAt) / 650) : 1;
+      if (this.prevFront && fade < 1) {
+        ctx.drawImage(this.prevFront, -size / 2, -size / 2, size, size);
+        ctx.globalAlpha = fade * fade * (3 - 2 * fade);
+        ctx.drawImage(this.front, -size / 2, -size / 2, size, size);
+        ctx.globalAlpha = 1;
+      } else {
+        this.prevFront = null;
+        ctx.drawImage(this.front, -size / 2, -size / 2, size, size);
+      }
     }
 
     // Oscurecimiento al pasar de canto.

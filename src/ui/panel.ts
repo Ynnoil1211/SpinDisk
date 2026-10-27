@@ -64,6 +64,10 @@ export class ConsolePanel {
   private sourceName: HTMLElement;
   private badge: HTMLElement;
   private foley: HTMLInputElement;
+  private inner: HTMLElement | null = null;
+  private isPanning = false;
+  private panStartX = 0;
+  private panStartScroll = 0;
 
   constructor(root: HTMLElement, turntable: Turntable, prefs: Preferences, handlers: PanelHandlers) {
     this.root = root;
@@ -89,6 +93,7 @@ export class ConsolePanel {
     this.sourceName = q('source-name');
     this.badge = q('source-badge');
     this.foley = q<HTMLInputElement>('foley');
+    this.inner = this.root.querySelector<HTMLElement>('.console__inner');
 
     this.bind();
     this.refresh();
@@ -98,6 +103,7 @@ export class ConsolePanel {
     this.root.addEventListener('pointerdown', () => this.arm());
     this.root.addEventListener('pointermove', () => this.arm());
     this.bindSwipeDown();
+    this.bindHorizontalScroll();
     this.root.addEventListener('focusin', () => this.arm());
 
     this.q('btn-prev').addEventListener('click', () => {
@@ -268,6 +274,55 @@ export class ConsolePanel {
     this.root.addEventListener('pointercancel', drop);
   }
 
+  /**
+   * Permite rodar / desplazar el panel horizontalmente cuando el ancho de
+   * pantalla no da para ver todos los módulos a la vez. Funciona con dedo
+   * (táctil nativo con pan-x) y con ratón arrastrando la fila.
+   */
+  private bindHorizontalScroll(): void {
+    if (!this.inner) return;
+    this.inner.addEventListener('scroll', () => {
+      this.arm();
+      this.updateScrollHints();
+    });
+
+    this.inner.addEventListener('pointerdown', (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && target.closest('input, button, a')) return;
+      this.isPanning = true;
+      this.panStartX = event.clientX;
+      this.panStartScroll = this.inner ? this.inner.scrollLeft : 0;
+    });
+
+    window.addEventListener('pointermove', (event: PointerEvent) => {
+      if (!this.isPanning || !this.inner) return;
+      const dx = event.clientX - this.panStartX;
+      if (Math.abs(dx) > 3) {
+        this.inner.scrollLeft = this.panStartScroll - dx;
+        this.arm();
+        this.updateScrollHints();
+      }
+    });
+
+    const stopPan = (): void => {
+      this.isPanning = false;
+    };
+    window.addEventListener('pointerup', stopPan);
+    window.addEventListener('pointercancel', stopPan);
+    window.addEventListener('resize', () => this.updateScrollHints());
+  }
+
+  updateScrollHints(): void {
+    if (!this.inner) return;
+    const scrollLeft = this.inner.scrollLeft || 0;
+    const clientWidth = this.inner.clientWidth || 0;
+    const scrollWidth = this.inner.scrollWidth || 0;
+    const canLeft = scrollLeft > 6;
+    const canRight = scrollWidth > clientWidth && scrollLeft + clientWidth < scrollWidth - 6;
+    this.root.classList.toggle('has-scroll-left', canLeft);
+    this.root.classList.toggle('has-scroll-right', canRight);
+  }
+
   open(): void {
     if (this.isOpen) {
       this.arm();
@@ -278,6 +333,7 @@ export class ConsolePanel {
     this.root.setAttribute('aria-hidden', 'false');
     document.body.classList.add('has-panel');
     this.refresh();
+    this.updateScrollHints();
     this.arm();
   }
 

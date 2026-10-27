@@ -67,7 +67,7 @@ object MediaHub {
         if (bitmap == null || bitmap.isRecycled) return null
         // El token va en la URL: nada de títulos con espacios, «|» o acentos, que
         // el WebView acabaría escapando y rompiendo la comparación.
-        val token = "${key.hashCode().toString(16)}x${bitmap.width}x${bitmap.height}"
+        val token = "${key.hashCode().toString(16)}x${bitmap.generationId}x${bitmap.width}x${bitmap.height}"
         if (token != artKey || artBytes == null) {
             // Algunas apps mandan portadas de 1500 px o más. Codificarlas tal
             // cual en PNG puede agotar la memoria de un móvil modesto —y el

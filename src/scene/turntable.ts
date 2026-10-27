@@ -93,6 +93,7 @@ export class Turntable {
   private prefs: Preferences;
   private lastSnapshotAt = 0;
   private lastTrackKey = '';
+  private lastCoverUrl: string | undefined;
   private revealAt = 0;
   private pausedAt = performance.now();
   private scrubbing = false;
@@ -266,6 +267,8 @@ export class Turntable {
     } else {
       this.track = snapshot;
       if (snapshot.duration > 0) this.duration = snapshot.duration;
+      // La portada puede llegar después del título: recarga si la URL cambió.
+      if (snapshot.coverUrl !== this.lastCoverUrl) this.loadCover(snapshot.coverUrl);
       const drift = Math.abs(snapshot.currentTime - this.progress);
       // Saltos reales (seek desde la app de origen) o pausa: se sincroniza duro.
       if (!snapshot.isPlaying || drift > 0.9 || !this.playing) {
@@ -291,8 +294,9 @@ export class Turntable {
 
   private loadCover(url: string | undefined): void {
     const token = ++this.imageToken;
-    this.coverReady = false;
+    this.lastCoverUrl = url;
     if (!url) {
+      this.coverReady = false;
       this.cover = null;
       this.palette = defaultPalette();
       this.onTrackVisual?.('cover');

@@ -160,6 +160,12 @@ window.addEventListener('keydown', (event) => {
     sandbox?.close();
     return;
   }
+  const inInput =
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement ||
+    Boolean((event.target as HTMLElement | null)?.isContentEditable);
+  if (inInput) return;
+
   if (key === ' ') {
     event.preventDefault();
     turntable.togglePlay();
@@ -214,7 +220,7 @@ function frame(now: number): void {
   turntable.update(dt, now);
   scene.render(now);
 
-  if (turntable.settled && !turntable.playing && activePointer === null) {
+  if (turntable.settled && !turntable.playing && activePointer === null && !scene.isTransitioning) {
     scheduleIdle();
     return;
   }

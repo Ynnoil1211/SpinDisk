@@ -250,40 +250,62 @@ export const makeSleeveBack = (
   if (hasLines) {
     const lines = data.lyrics!.lines;
     const active = data.activeIndex;
-    const visible = Math.max(6, Math.floor((bodyBottom - bodyTop) / lineHeight));
-    let start = 0;
-    if (active >= 0) {
-      start = Math.max(0, active - Math.floor(visible * 0.45));
-    } else {
-      const ratio = data.duration > 0 ? Math.min(1, Math.max(0, (data.activeIndex + 1) / lines.length)) : 0;
-      start = Math.floor(ratio * Math.max(0, lines.length - visible));
-    }
     const accentInk = hsl(14, 0.58, 0.36);
     ctx.font = `${size * 0.0285}px ${SERIF}`;
     ctx.textAlign = 'center';
-    for (let i = 0; i < visible; i++) {
-      const line = lines[start + i];
-      if (!line) break;
-      const y = bodyTop + i * lineHeight;
-      const isActive = start + i === active;
-      const distance = Math.abs(start + i - active);
+    // Cada verso se parte en todos los renglones que necesite (sin recorte) y
+    // ocupa su altura real, de modo que nunca pisa al siguiente.
+    const rowH = lineHeight * 0.92;
+    const gap = lineHeight * 0.22;
+    const wrapped = lines.map((l) => {
+      const parts = wrapText(ctx, l.text, size - pad * 2.3, 99);
+      return parts.length > 0 ? parts : [''];
+    });
+    const heightOf = (i: number): number => Math.max(1, wrapped[i].length) * rowH + gap;
+    const avail = bodyBottom - bodyTop;
+    let start = 0;
+    if (active >= 0) {
+      // Retrocede desde el verso activo hasta ocupar ~40% del alto disponible.
+      let used = heightOf(active);
+      start = active;
+      while (start > 0 && used + heightOf(start - 1) <= avail * 0.4) {
+        start--;
+        used += heightOf(start);
+      }
+    } else {
+      const ratio = Math.min(1, Math.max(0, (active + 1) / lines.length));
+      start = Math.floor(ratio * Math.max(0, lines.length - 6));
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, bodyTop - size * 0.01, size, avail + size * 0.02);
+    ctx.clip();
+    let y = bodyTop;
+    for (let i = start; i < lines.length; i++) {
+      const text = wrapped[i];
+      const h = heightOf(i);
+      if (y + h - gap > bodyBottom + rowH * 0.3 && i > start) break;
+      const isActive = i === active;
+      const distance = Math.abs(i - active);
       const fade = isActive ? 1 : active >= 0 ? Math.max(0.4, 0.78 - distance * 0.1) : 0.62;
       ctx.globalAlpha = fade;
       ctx.fillStyle = isActive ? accentInk : palette.labelInk;
-      const text = wrapText(ctx, line.text, size - pad * 2.3, 2);
       for (let j = 0; j < text.length; j++) {
-        ctx.fillText(text[j], size / 2, y + j * lineHeight * 0.92);
+        if (text[j]) ctx.fillText(text[j], size / 2, y + j * rowH);
       }
-      if (isActive) {
+      if (isActive && text.length > 0 && text[0]) {
+        const lastY = y + (text.length - 1) * rowH;
         const width = Math.min(size - pad * 2.2, ctx.measureText(text[text.length - 1] ?? '').width + size * 0.06);
-        drawHandUnderline(ctx, (size - width) / 2, y + lineHeight * 0.52, width, accentInk);
+        drawHandUnderline(ctx, (size - width) / 2, lastY + lineHeight * 0.52, width, accentInk);
         ctx.fillStyle = accentInk;
         ctx.beginPath();
         ctx.arc(pad * 0.72, y - size * 0.008, size * 0.0045, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
+      y += h;
     }
+    ctx.restore();
     if (data.status === 'loading') {
       ctx.globalAlpha = 0.5;
       ctx.textAlign = 'center';
