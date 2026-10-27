@@ -8,11 +8,22 @@
 // Pasó de verdad: en un móvil tumbado el panel dejó de abrirse porque el borde
 // inferior visible estaba en y≈739 del diseño y la zona empezaba en y=770.
 
-/** Alto de la franja inferior que abre la consola, en píxeles de pantalla. */
+/** Franja inferior mínima que abre la consola, en píxeles de pantalla. */
 export const EDGE_BAND = 38;
+
+/** Franja máxima: más que esto se comería media mesa en pantallas altas. */
+export const EDGE_BAND_MAX = 64;
 
 /** Lado de la esquina superior izquierda que también la abre. */
 export const CORNER = 88;
 
+/**
+ * Franja inferior para una pantalla de `height` píxeles: 6 % del alto, acotada
+ * entre `EDGE_BAND` y `EDGE_BAND_MAX`. En la tablet (800 px) son 48 px; en un
+ * móvil tumbado (393 px) se queda en el mínimo.
+ */
+export const edgeBand = (height: number): number =>
+  Math.round(Math.min(EDGE_BAND_MAX, Math.max(EDGE_BAND, height * 0.06)));
+
 export const isPanelEdge = (clientX: number, clientY: number, height: number): boolean =>
-  clientY >= height - EDGE_BAND || (clientX <= CORNER && clientY <= CORNER);
+  clientY >= height - edgeBand(height) || (clientX <= CORNER && clientY <= CORNER);

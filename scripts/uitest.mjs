@@ -256,9 +256,11 @@ source.dispatch('pointerup');
 check('soltar después no vuelve a abrir', turntable.calls.filter((c) => c.startsWith('source:')).length === 1, turntable.calls.join(','));
 
 group('Bordes que abren la consola');
-const { isPanelEdge, EDGE_BAND, CORNER } = await import('../dist/ui/edge.js');
-check('el borde inferior abre en la tablet', isPanelEdge(640, 790, 800) === true);
-check('y también en un móvil tumbado', isPanelEdge(600, 383, 393) === true, `franja de ${EDGE_BAND} px`);
+const { isPanelEdge, edgeBand, EDGE_BAND, CORNER } = await import('../dist/ui/edge.js');
+check('el borde inferior abre en la tablet', isPanelEdge(640, 790, 800) === true, `franja de ${edgeBand(800)} px`);
+check('y también en un móvil tumbado', isPanelEdge(600, 383, 393) === true, `franja de ${edgeBand(393)} px`);
+check('la franja crece con la pantalla pero tiene tope', edgeBand(800) === 48 && edgeBand(1080) === 64, `${edgeBand(800)} / ${edgeBand(1080)}`);
+check('justo por encima de la franja no abre', isPanelEdge(640, 800 - edgeBand(800) - 2, 800) === false);
 check('la esquina superior izquierda abre', isPanelEdge(40, 40, 393) === true, `lado de ${CORNER} px`);
 check('el centro del disco no abre nada', isPanelEdge(560, 220, 393) === false);
 check('el borde derecho no abre nada', isPanelEdge(820, 200, 393) === false);

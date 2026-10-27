@@ -67,7 +67,9 @@ atajo al reloj) y una tira de cuatro fotogramas en `docs/captures/f2-freno.png`.
 `index.html` real con un DOM mínimo y reloj falso. Los dos terminan en verde o con código 1.
 
 El panel se abre deslizando desde el borde inferior (o tocando la esquina superior izquierda) y
-**se cierra deslizándolo hacia abajo**, además de a los 3 s sin tocarlo.
+**se cierra deslizándolo hacia abajo**, además de a los 3 s sin tocarlo. La franja que lo abre se
+mide en píxeles de pantalla (6 % del alto, entre 38 y 64 px), y la primera vez que se abre la app se
+enseña solo, porque la pista es una rayita de 3 px y nadie adivina que está ahí.
 
 El panel F2 incluye un botón **«Modo reloj ahora»**: adelanta el minuto de reposo para ver el
 reloj de escritorio sin esperar, y muestra la cuenta atrás real cuando está en pausa.

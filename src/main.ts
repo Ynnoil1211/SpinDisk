@@ -255,6 +255,28 @@ const boot = async (): Promise<void> => {
   }
   kick();
 
+  // La primera vez que se abre, la consola se enseña sola: el borde inferior no
+  // se ve (la pista es una rayita de 3 px) y nadie adivina que está ahí.
+  const showControlsHint = (): void => {
+    let seen = true;
+    try {
+      seen = localStorage.getItem('spindisk.hint.v1') === '1';
+    } catch {
+      seen = true;
+    }
+    if (seen || SHOT) return;
+    window.setTimeout(() => {
+      panel.open();
+      notify('Los controles están aquí abajo', 3200);
+      try {
+        localStorage.setItem('spindisk.hint.v1', '1');
+      } catch {
+        /* sin almacenamiento: se volverá a enseñar la próxima vez */
+      }
+    }, 2400);
+  };
+  showControlsHint();
+
   if (!native) {
     if (!SHOT) notify('F2 abre el panel de pruebas', 3600);
     window.setTimeout(() => {
