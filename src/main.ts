@@ -7,12 +7,12 @@
 
 import type { PlayerBridge } from './core/types.js';
 import { loadPreferences, savePreferences } from './core/store.js';
-import { AndroidBridge, NATIVE_NOTICE, isNativeShell } from './bridge/android.js';
+import { AndroidBridge, NATIVE_ACCESS, NATIVE_NOTICE, isNativeShell } from './bridge/android.js';
 import { SandboxBridge } from './bridge/sandbox.js';
 import { Scene } from './scene/renderer.js';
 import { Turntable } from './scene/turntable.js';
 import { hitTest } from './scene/layout.js';
-import { isPanelEdge } from './ui/edge.js';
+import { decideTap, isPanelEdge } from './ui/edge.js';
 import { ConsolePanel } from './ui/panel.js';
 import { mountSandbox } from './ui/sandbox.js';
 import { createToast } from './ui/toast.js';
@@ -66,6 +66,16 @@ window.addEventListener(NATIVE_NOTICE, (event) => {
   if (typeof detail === 'string' && detail) notify(detail, 5200);
 });
 
+// Y por aquí dice si el acceso a notificaciones ya está concedido, cosa que se
+// sabe al volver de los ajustes: sin esto la banda que lo pedía se quedaba en
+// pantalla después de haberlo concedido.
+let accessGranted = false;
+let banner: Banner | null = null;
+window.addEventListener(NATIVE_ACCESS, (event) => {
+  accessGranted = (event as CustomEvent<unknown>).detail === true;
+  if (accessGranted) banner?.hide();
+});
+
 const toDesign = (event: PointerEvent): { x: number; y: number } =>
   scene.toDesign(event.clientX, event.clientY);
 
@@ -74,14 +84,23 @@ canvas.addEventListener('pointerdown', (event) => {
   turntable.foley.unlock();
   const { x, y } = toDesign(event);
 
-  // Borde inferior o esquina superior izquierda: aparece la consola. Se mira en
+  const target = hitTest(x, y, turntable.armAngle);
+
+  // El borde inferior, la esquina o la mesa vacía abren la consola. Se mira en
   // píxeles de pantalla porque el diseño se recorta en pantallas anchas.
-  if (isPanelEdge(event.clientX, event.clientY, window.innerHeight)) {
+  const edge = isPanelEdge(event.clientX, event.clientY, window.innerHeight);
+  const action = decideTap(edge, target === 'none', panel.isOpen);
+  if (action === 'open') {
     panel.open();
+    kick();
     return;
   }
+  if (action === 'close') {
+    panel.close();
+    return;
+  }
+  if (target === 'none') return;
 
-  const target = hitTest(x, y, turntable.armAngle);
   if (!turntable.pointerDown(target, x, y)) return;
   activePointer = event.pointerId;
   canvas.setPointerCapture(event.pointerId);
@@ -288,7 +307,13 @@ const boot = async (): Promise<void> => {
   // En la tablet: si nadie ha dado acceso a las notificaciones, el disco no
   // puede girar. Se pide una vez, con un aviso que no se va solo.
   const android = bridge as AndroidBridge;
-  const banner = new Banner(bannerEl, { onAction: () => android.requestNotificationAccess() });
+
+  // La versión se enseña al arrancar: sin cable no hay otra forma de saber qué
+  // compilación corre el aparato cuando algo no cuadra.
+  const built = android.version();
+  if (!SHOT && built !== '?') window.setTimeout(() => notify(`SpinDisk ${built}`, 1600), 700);
+
+  banner = new Banner(bannerEl, { onAction: () => android.requestNotificationAccess() });
   if (!android.notificationAccess()) {
     banner.show(
       'Para leer lo que suena, SpinDisk necesita acceso a las notificaciones. Actívalo y vuelve.',

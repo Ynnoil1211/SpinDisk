@@ -27,3 +27,21 @@ export const edgeBand = (height: number): number =>
 
 export const isPanelEdge = (clientX: number, clientY: number, height: number): boolean =>
   clientY >= height - edgeBand(height) || (clientX <= CORNER && clientY <= CORNER);
+
+/** Qué hace un toque en el lienzo. */
+export type TapAction = 'open' | 'close' | 'pass';
+
+/**
+ * Decide el toque antes de mirar el disco:
+ *
+ * - en el borde inferior o la esquina → abre la consola;
+ * - sobre la mesa vacía → abre la consola, o la cierra si ya estaba (tocar la
+ *   mesa es la forma más evidente de pedir los mandos, y así no hay que atinar
+ *   con una franja de 4 px);
+ * - sobre el disco, la funda o el brazo → lo de siempre: frenar, girar, arrastrar.
+ */
+export const decideTap = (edge: boolean, onDesk: boolean, isOpen: boolean): TapAction => {
+  if (edge) return isOpen ? 'pass' : 'open';
+  if (!onDesk) return 'pass';
+  return isOpen ? 'close' : 'open';
+};

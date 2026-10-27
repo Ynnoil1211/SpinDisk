@@ -265,6 +265,12 @@ check('la esquina superior izquierda abre', isPanelEdge(40, 40, 393) === true, `
 check('el centro del disco no abre nada', isPanelEdge(560, 220, 393) === false);
 check('el borde derecho no abre nada', isPanelEdge(820, 200, 393) === false);
 
+const { decideTap } = await import('../dist/ui/edge.js');
+check('tocar la mesa vacía abre la consola', decideTap(false, true, false) === 'open');
+check('volver a tocarla la cierra', decideTap(false, true, true) === 'close');
+check('tocar el disco no abre nada', decideTap(false, false, false) === 'pass');
+check('el borde abre aunque el panel esté cerrado', decideTap(true, false, false) === 'open');
+
 // ------------------------------------------------------------------- preferencias
 group('Preferencias persistentes');
 check('cada cambio entrega el objeto completo', prefEvents.every((p) => 'discTexture' in p && 'rpm' in p && 'foley' in p && 'clockWhilePlaying' in p));

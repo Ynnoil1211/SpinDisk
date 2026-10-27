@@ -14,6 +14,12 @@ class NativeBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun platform(): String = "android"
 
+    /** Sirve para saber qué compilación corre el aparato cuando algo no encaja. */
+    @JavascriptInterface
+    fun version(): String = runCatching {
+        activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: "?"
+    }.getOrDefault("?")
+
     @JavascriptInterface
     fun start(): Boolean {
         MediaHub.requestPublish()

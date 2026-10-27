@@ -16,6 +16,7 @@ import type { PlayerBridge, SourceApp, TrackSnapshot } from '../core/types.js';
 /** Espejo exacto de los métodos anotados con `@JavascriptInterface`. */
 interface NativeBridgeHandle {
   platform(): string;
+  version(): string;
   start(): boolean;
   snapshot(): string;
   listening(): boolean;
@@ -95,6 +96,13 @@ export const parseSnapshot = (raw: string): TrackSnapshot | null => {
 /** Aviso para la interfaz (se muestra como el resto de los avisos). */
 export const NATIVE_NOTICE = 'spindisk:notice';
 
+/**
+ * El sistema acaba de conceder (o quitar) el acceso a las notificaciones.
+ * Lo manda `MainActivity.onResume`: al volver de los ajustes con el permiso ya
+ * dado, la banda que lo pedía tiene que desaparecer sola.
+ */
+export const NATIVE_ACCESS = 'spindisk:access';
+
 export class AndroidBridge implements PlayerBridge {
   readonly kind = 'android' as const;
 
@@ -173,6 +181,11 @@ export class AndroidBridge implements PlayerBridge {
 
   notificationAccess(): boolean {
     return handle()?.notificationAccess() === true;
+  }
+
+  /** Qué compilación corre el aparato; sirve para diagnosticar a distancia. */
+  version(): string {
+    return handle()?.version() ?? '?';
   }
 
   dispose(): void {

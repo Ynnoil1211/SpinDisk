@@ -159,6 +159,8 @@ class MainActivity : Activity() {
                     pendingNotice = null
                     pushNotice(notice)
                 }
+                // Y si el acceso ya estaba concedido, que no vuelva a pedirlo.
+                pushAccess(hasNotificationAccess())
             }
         }
 
@@ -174,7 +176,9 @@ class MainActivity : Activity() {
         web?.onResume()
         goFullscreen()
         MediaHub.requestPublish()
-        if (!hasNotificationAccess() && !askedForAccess) {
+        val granted = hasNotificationAccess()
+        if (granted) pushAccess(true)
+        else if (!askedForAccess) {
             askedForAccess = true
             askForNotificationAccess()
         }
@@ -231,6 +235,19 @@ class MainActivity : Activity() {
         // Puede llegar desde el JavaScript (hilatura propia del WebView), y
         // abrir una actividad fuera del hilo de interfaz es pedir problemas.
         runOnUiThread { runCatching { startActivity(intent) } }
+    }
+
+    /**
+     * Avisa a la escena de que el acceso a notificaciones ya está concedido, para
+     * que retire la banda del permiso sin obligar a reabrir la app.
+     */
+    private fun pushAccess(granted: Boolean) {
+        runOnUiThread {
+            web?.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('spindisk:access',{detail:$granted}))",
+                null,
+            )
+        }
     }
 
     private fun pushNotice(message: String) {
