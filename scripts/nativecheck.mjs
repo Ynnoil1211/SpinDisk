@@ -196,9 +196,14 @@ check(
   'temurin + setup-gradle',
 );
 check(
-  'publica el app-debug.apk',
-  /upload-artifact/.test(workflow) && /app-debug\.apk/.test(workflow),
-  'artefacto descargable',
+  'publica el APK con nombre propio',
+  /upload-artifact/.test(workflow) && /spindisk\.apk/.test(workflow),
+  'spindisk.apk descargable',
+);
+check(
+  'guarda la clave de firma entre compilaciones',
+  /actions\/cache@v4/.test(workflow) && /debug\.keystore/.test(workflow),
+  'así una actualización se instala encima',
 );
 
 console.log(

@@ -36,6 +36,28 @@ probable a lo menos.
    puede activar a mano en Ajustes → Notificaciones → Acceso a notificaciones → SpinDisk.
 4. Con Spotify o YouTube sonando en segundo plano, la portada debe aparecer sola.
 
+## Si Google Play lo bloquea
+
+Play Protect frena cualquier app que no venga de la tienda, y más si pide **acceso a
+notificaciones**. No es un virus: Google no conoce el paquete. Tres caminos, del más
+limpio al más rápido:
+
+- **Por cable (el más fiable).** Opciones de desarrollador → depuración USB, y
+  `adb install -r spindisk.apk`. En instalaciones por `adb` Play Protect no interviene.
+- **«Instalar de todas formas».** Al abrir el APK, si sale el aviso, buscar
+  *Más detalles* → *Instalar de todas formas*.
+- **Desactivar el análisis un momento.** Play Store → foto de perfil → Play Protect →
+  engranaje → desactivar *Analizar apps con Play Protect*, instalar y volver a activarlo.
+
+Si en cambio dice **«Aplicación no instalada»**, no es un bloqueo sino un rechazo:
+
+- El archivo debe terminar en `.apk` (WhatsApp y Drive a veces renombran).
+- Si ya había una versión instalada, tiene que venir firmada con la **misma clave**.
+  Por eso el flujo guarda `~/.android/debug.keystore` en caché entre compilaciones:
+  desde el primer build con esa caché, las actualizaciones se instalan encima. Las
+  instalaciones hechas **antes** de ese cambio llevan otra firma y hay que
+  desinstalarlas una vez.
+
 ## Lo que no se puede comprobar sin la tablet
 
 Peso real del APK, RAM en reposo y en reproducción, y batería en una sesión larga: son

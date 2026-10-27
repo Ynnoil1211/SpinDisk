@@ -341,7 +341,7 @@ El APK no lleva motor propio (usa el WebView de la tablet), así que pesa menos 
    es la detección de Premium; el latido es de 500 ms; la portada se sirve por
    `https://spindisk.local/art` con CORS; el manifiesto declara actividad, servicio,
    `sensorLandscape`, `resizeableActivity`, los tres paquetes de música y VIBRATE; el módulo
-   Gradle no tiene dependencias y el workflow publica el `app-debug.apk`.
+   Gradle no tiene dependencias y el workflow publica el `spindisk.apk`.
 2. `node scripts/nativebridge.mjs` — **29/29**. Instala un `window.SpinDiskNative` falso con los
    mismos nombres y valores de vuelta que el de Kotlin y comprueba el puente de verdad:
    `connect()` arranca el servicio, la primera instantánea llega sin esperar, la traducción de
@@ -509,7 +509,7 @@ funcionará igual sin él (modo adorno con reloj).
 compiló a la primera (ejecución 40427965945, 98 s, artefacto `spindisk-apk` de 0,83 MB). Lo que
 queda de F9 no se puede hacer desde ningún PC:
 
-1. Descargar el artefacto y pasar el `app-debug.apk` a la tablet.
+1. Descargar el artefacto y pasar el `spindisk.apk` a la tablet.
 2. Instalarlo y conceder **acceso a las notificaciones** (el aviso de la propia app lleva al
    ajuste); sin eso la mesa se queda vacía.
 3. Poner Spotify a sonar y comprobar que el vinilo gira, que el freno con el dedo pausa de

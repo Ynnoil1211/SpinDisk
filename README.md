@@ -90,14 +90,20 @@ publicado de la interfaz es de 160 KB y el motor gráfico lo pone la propia tabl
 
 `.github/workflows/build-apk.yml` compila la interfaz, verifica el contrato, copia `dist/` a los
 assets y ejecuta `gradle :app:assembleDebug` en un runner de GitHub con JDK 17 y el SDK de
-Android. El `app-debug.apk` queda como artefacto descargable en la pestaña **Actions**.
+Android. El APK queda como artefacto descargable en la pestaña **Actions**, ya con nombre
+`spindisk.apk` (el flujo lo renombra para no llegar a la tablet como `app-debug.apk`).
 
 **Ya está compilado.** El primer `push` bastó: la
 [ejecución 40427965945](https://github.com/Ynnoil1211/SpinDisk/actions/runs/40427965945) terminó
 en verde en 98 s con las doce etapas correctas, y el artefacto **`spindisk-apk` pesa 0,83 MB**.
-Para instalarlo: descargar el `.zip` del artefacto, descomprimirlo, pasar el `app-debug.apk` a la
+Para instalarlo: descargar el `.zip` del artefacto, descomprimirlo, pasar el `spindisk.apk` a la
 tablet e instalarlo aceptando el origen desconocido. La primera vez que se abre pide **acceso a
-las notificaciones**, que es lo único que le permite saber qué suena.
+las notificaciones**, que es lo único que le permite saber qué suena. Si **Play Protect** lo
+bloquea (lo normal con cualquier app de fuera de la tienda), en `docs/apk.md` están los tres
+caminos: `adb install`, «instalar de todas formas» o desactivar el análisis un momento.
+
+El flujo guarda en caché `~/.android/debug.keystore`, así que todas las compilaciones firman con
+la misma clave y una actualización se instala encima de la anterior.
 
 En este PC no hay JDK ni SDK: el Kotlin se escribió y revisó a mano, y la compilación de verdad
 la hizo el runner.

@@ -7,10 +7,7 @@ import type { Palette } from '../theme/palette.js';
 import { hsl } from '../theme/palette.js';
 import type { DiscTexture } from '../core/types.js';
 import { makeMarbleTexture, makeSurface, roundRectPath, drawCurvedText, wrapText } from '../render/canvas.js';
-
-const SERIF = 'Georgia, "Iowan Old Style", "Times New Roman", serif';
-const SANS = '"Helvetica Neue", "Segoe UI", system-ui, sans-serif';
-const MONO = '"SF Mono", "Cascadia Mono", "Roboto Mono", monospace';
+import { MONO, SANS, SERIF } from '../theme/fonts.js';
 
 export interface DiscState {
   cx: number;

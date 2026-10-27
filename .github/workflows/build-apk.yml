@@ -39,6 +39,16 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      # La clave de depuración de Gradle se genera sola la primera vez. Sin
+      # guardarla, cada compilación firma con una clave distinta y Android
+      # rechaza instalar la nueva encima de la anterior ("Aplicación no
+      # instalada"): habría que desinstalar en cada actualización.
+      - name: Firma estable
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
       # Si algo falla, estos números son lo primero que hay que leer: el
       # registro de Gradle no dice con qué versión se intentó.
       - name: Versiones
@@ -53,8 +63,12 @@ jobs:
         working-directory: android
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
+      # Con nombre de archivo entendible al llegar a la tablet.
+      - name: Preparar el artefacto
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk spindisk.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: spindisk-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: spindisk.apk
           if-no-files-found: error

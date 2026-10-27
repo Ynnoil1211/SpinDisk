@@ -20,7 +20,7 @@ body {
   overflow: hidden;
   background: var(--paper);
   color: var(--ink);
-  font-family: "Helvetica Neue", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Helvetica Neue", "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;

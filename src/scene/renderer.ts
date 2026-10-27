@@ -18,6 +18,7 @@ import type { Turntable } from './turntable.js';
 import type { Palette } from '../theme/palette.js';
 import { hsl } from '../theme/palette.js';
 import { formatClock } from '../util/math.js';
+import { SANS, SERIF } from '../theme/fonts.js';
 
 /**
  * Geometría del papelito con la hora. Se apoya arriba a la izquierda, en el
@@ -634,7 +635,7 @@ export class Scene {
     ctx.textAlign = 'left';
 
     ctx.fillStyle = ink;
-    ctx.font = `500 ${Math.round(h * 0.4)}px Georgia, "Times New Roman", serif`;
+    ctx.font = `500 ${Math.round(h * 0.4)}px ${SERIF}`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = '-0.01em';
     ctx.fillText(time, pad + 15, pad + h * 0.55);
 
@@ -647,7 +648,7 @@ export class Scene {
     ctx.stroke();
 
     ctx.fillStyle = 'rgba(58,44,30,0.72)';
-    ctx.font = `500 ${Math.round(h * 0.088)}px "Segoe UI", system-ui, sans-serif`;
+    ctx.font = `500 ${Math.round(h * 0.088)}px ${SANS}`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0.12em';
     ctx.fillText(date.toUpperCase(), pad + 15, pad + h * 0.86);
     ctx.restore();
@@ -672,9 +673,9 @@ export class Scene {
     ctx.globalAlpha = 0.38;
     ctx.fillStyle = palette.ink;
     ctx.textAlign = 'center';
-    ctx.font = '500 17px "Helvetica Neue", system-ui, sans-serif';
+    ctx.font = `500 17px ${SANS}`;
     ctx.fillText('Pon algo a sonar en Spotify y el disco aparecerá aquí', 880, 720);
-    ctx.font = '400 13px "Helvetica Neue", system-ui, sans-serif';
+    ctx.font = `400 13px ${SANS}`;
     ctx.globalAlpha = 0.28;
     ctx.fillText('sin prisa · el tocadiscos escucha lo que ya suena', 880, 746);
     ctx.restore();

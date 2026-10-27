@@ -9,9 +9,7 @@ import { hsl } from '../theme/palette.js';
 import type { Lyrics } from '../bridge/lyrics.js';
 import { drawCoverFit, makeGrainTile, makeSurface, roundRectPath, wrapText } from '../render/canvas.js';
 import { formatTime, hashString } from '../util/math.js';
-
-const SERIF = 'Georgia, "Iowan Old Style", "Times New Roman", serif';
-const SANS = '"Helvetica Neue", "Segoe UI", system-ui, sans-serif';
+import { SANS, SERIF } from '../theme/fonts.js';
 
 let grainTile: HTMLCanvasElement | null = null;
 const getGrain = (): HTMLCanvasElement => {
