@@ -11,7 +11,8 @@ import { AndroidBridge, NATIVE_NOTICE, isNativeShell } from './bridge/android.js
 import { SandboxBridge } from './bridge/sandbox.js';
 import { Scene } from './scene/renderer.js';
 import { Turntable } from './scene/turntable.js';
-import { DESIGN, hitTest } from './scene/layout.js';
+import { hitTest } from './scene/layout.js';
+import { isPanelEdge } from './ui/edge.js';
 import { ConsolePanel } from './ui/panel.js';
 import { mountSandbox } from './ui/sandbox.js';
 import { createToast } from './ui/toast.js';
@@ -73,8 +74,9 @@ canvas.addEventListener('pointerdown', (event) => {
   turntable.foley.unlock();
   const { x, y } = toDesign(event);
 
-  // Borde inferior o esquina superior izquierda: aparece la consola.
-  if (y > DESIGN.height - 30 || (x < 76 && y < 76)) {
+  // Borde inferior o esquina superior izquierda: aparece la consola. Se mira en
+  // píxeles de pantalla porque el diseño se recorta en pantallas anchas.
+  if (isPanelEdge(event.clientX, event.clientY, window.innerHeight)) {
     panel.open();
     return;
   }

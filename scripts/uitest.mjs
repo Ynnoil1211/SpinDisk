@@ -255,6 +255,14 @@ check('y avisa de lo que va a hacer', (notices.at(-1) ?? '').includes('ventana f
 source.dispatch('pointerup');
 check('soltar después no vuelve a abrir', turntable.calls.filter((c) => c.startsWith('source:')).length === 1, turntable.calls.join(','));
 
+group('Bordes que abren la consola');
+const { isPanelEdge, EDGE_BAND, CORNER } = await import('../dist/ui/edge.js');
+check('el borde inferior abre en la tablet', isPanelEdge(640, 790, 800) === true);
+check('y también en un móvil tumbado', isPanelEdge(600, 383, 393) === true, `franja de ${EDGE_BAND} px`);
+check('la esquina superior izquierda abre', isPanelEdge(40, 40, 393) === true, `lado de ${CORNER} px`);
+check('el centro del disco no abre nada', isPanelEdge(560, 220, 393) === false);
+check('el borde derecho no abre nada', isPanelEdge(820, 200, 393) === false);
+
 // ------------------------------------------------------------------- preferencias
 group('Preferencias persistentes');
 check('cada cambio entrega el objeto completo', prefEvents.every((p) => 'discTexture' in p && 'rpm' in p && 'foley' in p && 'clockWhilePlaying' in p));
