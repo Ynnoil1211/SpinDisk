@@ -51,7 +51,6 @@ class MainActivity : Activity() {
             // el motor; si no llega a verse, ni siquiera se llegó a arrancar.
             showBoot("arrancando…")
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            showLastCrashIfAny()
             window.decorView.post { mountWeb() }
         } catch (error: Throwable) {
             showFailure(error)
@@ -70,6 +69,10 @@ class MainActivity : Activity() {
             goFullscreen()
             MediaHub.sink = { json -> runOnUiThread { pushToWeb(json) } }
             view.loadUrl("file:///android_asset/www/index.html")
+            // La traza va después de tener contenido: `addContentView` antes de
+            // `setContentView` lanza IllegalStateException, y el aviso de fallo
+            // se quedaba sin poder pintarse (y sin su archivo, ya borrado).
+            showLastCrashIfAny()
         } catch (error: Throwable) {
             // Si el motor del sistema falla en un aparato concreto, es mejor
             // contarlo en pantalla que desaparecer sin explicación.
@@ -108,6 +111,12 @@ class MainActivity : Activity() {
             mediaPlaybackRequiresUserGesture = false
             cacheMode = WebSettings.LOAD_DEFAULT
             textZoom = 100
+            // La página vive en file:///android_asset. Sin estos dos permisos, el
+            // `fetch` a LRCLIB (la letra) puede quedar bloqueado por el origen
+            // `null` de un archivo local. Sólo afecta a nuestro propio contenido:
+            // no hay ninguna otra página que pueda cargarse aquí dentro.
+            allowFileAccessFromFileURLs = true
+            allowUniversalAccessFromFileURLs = true
         }
         view.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
@@ -299,12 +308,14 @@ class MainActivity : Activity() {
 
     /** Traza del último fallo, encima de la escena y descartable con un toque. */
     private fun showLastCrashIfAny() {
+        // Sin contenido no hay dónde superponer nada: se comprueba ANTES de
+        // leer y borrar, o el archivo se perdería sin haberse llegado a ver.
+        if (web == null) return
         val file = crashFile()
         if (!file.exists()) return
         val trace = runCatching { file.readText() }.getOrNull().orEmpty()
         runCatching { file.delete() }
         if (trace.isBlank()) return
-        if (web == null) return
 
         val text = TextView(this).apply {
             setPadding(32, 24, 32, 24)

@@ -105,7 +105,14 @@ export const fetchLyrics = async (
   const key = cacheKey(artist, title, duration);
   if (MEMORY_CACHE.has(key)) return MEMORY_CACHE.get(key) ?? null;
 
-  const stored = localStorage.getItem(key);
+  // La consulta a localStorage puede lanzar (modo privado, o un WebView que no
+  // deja almacenar desde file://): sin caché se sigue, pero que no reviente.
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(key);
+  } catch {
+    stored = null;
+  }
   if (stored) {
     try {
       const parsed = stored === 'null' ? null : (JSON.parse(stored) as Lyrics);

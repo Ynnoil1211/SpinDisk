@@ -233,6 +233,30 @@ check(
   /ART_MAX_SIDE/.test(ktHub) && /createScaledBitmap/.test(ktHub),
   'una portada de 1500 px no debe poder tumbar el proceso',
 );
+// `addContentView` antes de `setContentView` lanza IllegalStateException, y la
+// comprobación de «sin contenido» tiene que ir ANTES de borrar el archivo.
+const mountWebBody =
+  /private fun mountWeb\(\)([\s\S]*?)\n    \}/.exec(ktActivity)?.[1] ?? '';
+check(
+  'la traza del fallo se pinta con la escena ya montada',
+  mountWebBody.includes('showLastCrashIfAny()') &&
+    mountWebBody.indexOf('setContentView(') < mountWebBody.indexOf('showLastCrashIfAny()'),
+  'si no, el aviso se queda sin poder pintarse',
+);
+const crashBody =
+  /private fun showLastCrashIfAny\(\)([\s\S]*?)\n    \}/.exec(ktActivity)?.[1] ?? '';
+check(
+  'no borra la traza sin haberla podido enseñar',
+  crashBody.length > 0 &&
+    crashBody.indexOf('web == null') < crashBody.indexOf('file.delete('),
+  'el archivo se perdía sin llegar a verse',
+);
+check(
+  'la página local puede pedir su propia letra',
+  /allowUniversalAccessFromFileURLs = true/.test(ktActivity) &&
+    /allowFileAccessFromFileURLs = true/.test(ktActivity),
+  'sin esto, un fetch a LRCLIB desde file:// puede quedar bloqueado',
+);
 
 console.log(
   failures === 0

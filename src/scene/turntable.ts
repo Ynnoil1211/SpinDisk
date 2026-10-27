@@ -305,7 +305,14 @@ export class Turntable {
       if (token !== this.imageToken) return;
       this.cover = image;
       this.coverReady = true;
-      this.palette = paletteFromImage(image);
+      // Leer los píxeles puede fallar si el lienzo queda contaminado (una
+      // portada sin cabeceras CORS). La carátula se ve igual: sólo la paleta
+      // se queda en los tonos por defecto.
+      try {
+        this.palette = paletteFromImage(image);
+      } catch {
+        this.palette = defaultPalette();
+      }
       this.onTrackVisual?.('cover');
       this.notify();
     };
@@ -323,12 +330,14 @@ export class Turntable {
     const token = ++this.lyricsToken;
     this.lyrics = null;
     this.lyricsStatus = 'loading';
-    void fetchLyrics(snapshot.artist, snapshot.title, snapshot.duration).then((lyrics) => {
-      if (token !== this.lyricsToken) return;
-      this.lyrics = lyrics;
-      this.lyricsStatus = lyrics ? 'ready' : 'missing';
-      this.notify();
-    });
+    void fetchLyrics(snapshot.artist, snapshot.title, snapshot.duration)
+      .catch(() => null)
+      .then((lyrics) => {
+        if (token !== this.lyricsToken) return;
+        this.lyrics = lyrics;
+        this.lyricsStatus = lyrics ? 'ready' : 'missing';
+        this.notify();
+      });
   }
 
   // ------------------------------------------------------------------- física

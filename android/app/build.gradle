@@ -11,14 +11,14 @@ android {
         applicationId 'com.spindisk.tablet'
         minSdk 24
         targetSdk 34
-        versionCode 11
-        versionName '0.7.4'
+        versionCode 12
+        versionName '0.7.5'
         resourceConfigurations += ['es', 'en']
     }
 
     buildTypes {
         debug {
-            // El APK de depuraciÃ³n es el que se instala desde GitHub Actions.
+            // El APK de depuraciÃƒÂ³n es el que se instala desde GitHub Actions.
             applicationIdSuffix ''
             versionNameSuffix ''
         }
@@ -40,16 +40,16 @@ android {
     sourceSets {
         main {
             kotlin.srcDirs += ['src/main/kotlin']
-            // `node scripts/native.mjs` copia dist/ aquÃ­ antes de compilar.
+            // `node scripts/native.mjs` copia dist/ aquÃƒÂ­ antes de compilar.
             assets.srcDirs += ['src/main/assets']
         }
     }
 }
 
-// La Ãºnica dependencia es la biblioteca estÃ¡ndar de Kotlin, y va escrita a mano
-// a propÃ³sito: el plugin la aÃ±ade solo, pero si algÃºn dÃ­a deja de hacerlo el APK
-// saldrÃ­a sin ella y la app se cerrarÃ­a al instante en cualquier telÃ©fono con
-// Â«NoClassDefFoundErrorÂ», sin pantalla y sin pista. Mejor explÃ­cito.
+// La ÃƒÂºnica dependencia es la biblioteca estÃƒÂ¡ndar de Kotlin, y va escrita a mano
+// a propÃƒÂ³sito: el plugin la aÃƒÂ±ade solo, pero si algÃƒÂºn dÃƒÂ­a deja de hacerlo el APK
+// saldrÃƒÂ­a sin ella y la app se cerrarÃƒÂ­a al instante en cualquier telÃƒÂ©fono con
+// Ã‚Â«NoClassDefFoundErrorÃ‚Â», sin pantalla y sin pista. Mejor explÃƒÂ­cito.
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
 }
