@@ -156,6 +156,19 @@ export class ConsolePanel {
       });
     });
 
+    this.root.querySelectorAll<HTMLButtonElement>('#clock-switch button').forEach((button) => {
+      button.addEventListener('click', () => {
+        const on = button.dataset.clock === 'on';
+        this.prefs.clockWhilePlaying = on;
+        this.applyPreferences();
+        this.handlers.notify(
+          on
+            ? 'Reloj a la vista · la hora se queda en la mesa mientras suena'
+            : 'Reloj de día apagado',
+        );
+      });
+    });
+
     this.foley.addEventListener('input', () => {
       this.prefs.foley = clamp(Number(this.foley.value) / 100, 0, 1);
       this.applyPreferences(false);
@@ -293,6 +306,10 @@ export class ConsolePanel {
     });
     this.root.querySelectorAll<HTMLButtonElement>('#rpm-switch button').forEach((button) => {
       button.classList.toggle('is-active', button.dataset.rpm === String(this.prefs.rpm));
+    });
+    this.root.querySelectorAll<HTMLButtonElement>('#clock-switch button').forEach((button) => {
+      const on = button.dataset.clock === 'on';
+      button.classList.toggle('is-active', on === this.prefs.clockWhilePlaying);
     });
 
     const foleyValue = String(Math.round(this.prefs.foley * 100));

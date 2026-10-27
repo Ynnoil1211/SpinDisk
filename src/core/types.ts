@@ -47,10 +47,17 @@ export interface Preferences {
   rpm: 33 | 45;
   /** 0..1 volumen del foley (estática + mecánica). */
   foley: number;
+  /**
+   * Imprimir la hora en un papelito sobre la mesa mientras hay música. El reloj
+   * de reposo (la hora en el fajín de la funda) no depende de esto: entra solo
+   * tras un minuto en pausa.
+   */
+  clockWhilePlaying: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
   discTexture: 'marble',
   rpm: 33,
   foley: 0.55,
+  clockWhilePlaying: false,
 };

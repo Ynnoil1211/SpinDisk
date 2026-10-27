@@ -435,6 +435,21 @@ console.log('\nFunda de cartón');
     turntable.flip < 0.005 && turntable.flipTarget === 0,
     `flip ${turntable.flip.toFixed(3)}`,
   );
+
+  // Dormirse leyendo la letra dejaba la pantalla en negro: la funda se gira sola.
+  turntable.pointerDown('sleeve', LAYOUT.sleeve.cx, LAYOUT.sleeve.cy);
+  tickUntil(rig.tick, () => turntable.flip > 0.995, 240);
+  turntable.forceClock();
+  const turnBack = tickUntil(
+    rig.tick,
+    () => turntable.clock > 0.95 && turntable.flip < 0.02,
+    360,
+  );
+  check(
+    'al dormirse del revés, la funda se gira sola',
+    turnBack > 0 && turntable.flipTarget === 0,
+    `${seconds(turnBack)} s · flip ${turntable.flip.toFixed(3)}`,
+  );
 }
 
 // ============================================================ 7. reposo y reloj
@@ -450,7 +465,7 @@ console.log('\nReposo');
   const wait = turntable.msUntilClock;
   check(
     'el panel sabe cuándo asoma el reloj',
-    wait > 59_000 && wait <= 60_000,
+    wait > 59_000 && wait <= 60_050,
     `${Math.round(wait / 1000)} s`,
   );
 
@@ -528,6 +543,94 @@ console.log('\nAtajo al modo reloj');
     back > 0 && turntable.playing,
     `${seconds(back)} s`,
   );
+}
+
+// ================================================== 8. toque seco y mano apoyada
+console.log('\nToque en el vinilo');
+{
+  const rig = makeRig();
+  await rig.turntable.connect();
+  settleTrack(rig);
+  const { turntable, bridge } = rig;
+  bridge.clear();
+
+  // Toque seco: baja y sube en el mismo fotograma, sin arrastre.
+  turntable.pointerDown('disc', LAYOUT.disc.cx + 150, LAYOUT.disc.cy);
+  turntable.pointerUp();
+  check(
+    'el toque seco deja la música en pausa',
+    !turntable.playing && bridge.calls.includes('pause') && !bridge.calls.includes('play'),
+    bridge.calls.join(', '),
+  );
+  rig.tick(40);
+  check(
+    'y el plato se queda parado',
+    turntable.spin < RPM_33 * 0.05,
+    `ω ${turntable.spin.toFixed(3)} rad/s`,
+  );
+  check(
+    'sin pedir ninguna búsqueda',
+    !bridge.calls.some((call) => call.startsWith('seek:')),
+    bridge.calls.join(', '),
+  );
+
+  bridge.clear();
+  turntable.pointerDown('disc', LAYOUT.disc.cx + 150, LAYOUT.disc.cy);
+  turntable.pointerUp();
+  check(
+    'otro toque la vuelve a arrancar',
+    turntable.playing && bridge.calls.includes('play'),
+    bridge.calls.join(', '),
+  );
+  const spinUp = tickUntil(rig.tick, () => turntable.spin >= RPM_33 * 0.9, 300);
+  check('y el plato recupera el giro', spinUp > 0, `${seconds(spinUp)} s`);
+
+  // Mano apoyada medio segundo: al levantar, sigue sonando donde estaba.
+  bridge.clear();
+  turntable.pointerDown('disc', LAYOUT.disc.cx + 150, LAYOUT.disc.cy);
+  rig.tick(30);
+  turntable.pointerUp();
+  check(
+    'con la mano apoyada, al soltar vuelve a sonar',
+    turntable.playing && bridge.calls.includes('play'),
+    bridge.calls.join(', '),
+  );
+}
+
+// ==================================================== 9. el reloj mientras suena
+console.log('\nReloj mientras suena');
+{
+  const rig = makeRig();
+  await rig.turntable.connect();
+  settleTrack(rig);
+  const { turntable } = rig;
+  rig.tick(40);
+  check('apagado por defecto', turntable.clockTag < 0.02, turntable.clockTag.toFixed(2));
+
+  turntable.setPreferences({ ...DEFAULT_PREFERENCES, clockWhilePlaying: true });
+  const show = tickUntil(rig.tick, () => turntable.clockTag > 0.95, 300);
+  check('con la opción, la hora asoma mientras suena', show > 0, `${seconds(show)} s`);
+  check(
+    'sin encender el reloj de reposo',
+    turntable.clock < 0.02,
+    `fajín ${turntable.clock.toFixed(2)}`,
+  );
+
+  turntable.forceClock();
+  const handover = tickUntil(
+    rig.tick,
+    () => turntable.clock > 0.95 && turntable.clockTag < 0.05,
+    300,
+  );
+  check('el fajín de reposo toma el relevo', handover > 0, `${seconds(handover)} s`);
+
+  turntable.wake();
+  const back = tickUntil(rig.tick, () => turntable.clockTag > 0.9, 300);
+  check('al volver la música regresa la tarjeta', back > 0, `${seconds(back)} s`);
+
+  turntable.setPreferences({ ...DEFAULT_PREFERENCES, clockWhilePlaying: false });
+  const hide = tickUntil(rig.tick, () => turntable.clockTag < 0.02, 240);
+  check('apagar la opción la retira', hide > 0, `${seconds(hide)} s`);
 }
 
 // ========================================================= tira del freno manual

@@ -214,6 +214,8 @@ group('El plato dispara el Foley');
   check('no repite la caída en cada fotograma', ctx.of('oscillator').filter((node) => node.type === 'sine' && Math.round(node.frequency.events[0]?.value) === 96).length === before, `caídas=${before}`);
 
   turntable.pointerDown('disc', 800, 414);
+  // La mano se queda apoyada: un toque seco sería otra cosa (pausa).
+  for (let frame = 0; frame < 30; frame += 1) tick(1);
   const clicks = ctx.of('oscillator').filter((node) => node.type === 'triangle');
   check('frenar con el dedo hace click de motor', clicks.length >= 1, `clicks=${clicks.length}`);
   check('y la aguja deja de chisporrotear', crackleGain.gain.destination === 0, `destino ${crackleGain.gain.destination}`);

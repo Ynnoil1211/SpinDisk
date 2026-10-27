@@ -13,10 +13,19 @@ import {
   makeSleeveFront,
   type SleeveBackData,
 } from './sleeve.js';
-import { makeGrainTile, makeShadowSprite, roundRectPath } from '../render/canvas.js';
+import { makeGrainTile, makeShadowSprite, makeSurface, roundRectPath } from '../render/canvas.js';
 import type { Turntable } from './turntable.js';
 import type { Palette } from '../theme/palette.js';
+import { hsl } from '../theme/palette.js';
 import { formatClock } from '../util/math.js';
+
+/**
+ * Geometría del papelito con la hora. Se apoya arriba a la izquierda, en el
+ * charco de luz, ligeramente torcido para que no parezca un widget.
+ */
+const CLOCK_CARD = { x: 172, y: 104, w: 208, h: 94, angle: -0.055 };
+/** Margen del sprite para que quepa la sombra difusa. */
+const CLOCK_PAD = 26;
 
 export class Scene {
   private canvas: HTMLCanvasElement;
@@ -40,6 +49,8 @@ export class Scene {
   private backKey = '';
   private sleeveShadow: HTMLCanvasElement | null = null;
   private sleeveShadowKey = '';
+  private clockCard: HTMLCanvasElement | null = null;
+  private clockCardKey = '';
 
   constructor(canvas: HTMLCanvasElement, turntable: Turntable) {
     this.canvas = canvas;
@@ -98,8 +109,9 @@ export class Scene {
     ctx.scale(this.scale, this.scale);
 
     this.drawDiscLayer(palette);
-    this.drawSleeve(now, palette);
+    this.drawSleeve(palette);
     this.drawArm();
+    this.drawDeskClock(palette);
     this.drawAmbience(now, palette);
     if (tt.clock > 0.01) this.drawDim(palette, tt.clock);
 
@@ -188,7 +200,7 @@ export class Scene {
 
   // ------------------------------------------------------------------ funda
 
-  private drawSleeve(now: number, palette: Palette): void {
+  private drawSleeve(palette: Palette): void {
     const tt = this.turntable;
     const ctx = this.ctx;
     const size = LAYOUT.sleeve.size;
@@ -258,11 +270,6 @@ export class Scene {
       ctx.drawImage(this.back, -size / 2, -size / 2, size, size);
     } else {
       ctx.drawImage(this.front, -size / 2, -size / 2, size, size);
-      const { time, date } = formatClock(new Date(now));
-      ctx.save();
-      ctx.translate(-size / 2, -size / 2);
-      drawSleeveClock(ctx, size, palette, tt.clock, time, date);
-      ctx.restore();
     }
 
     // Oscurecimiento al pasar de canto.
@@ -289,6 +296,20 @@ export class Scene {
       ctx.restore();
     }
     ctx.restore();
+
+    // La hora se imprime sobre la cara que esté mirando: si la funda está
+    // del revés (letra), el fajín también aparece, sin espejo y con el mismo
+    // aplastamiento del giro. Un tocadiscos dormido no debe quedarse en negro.
+    if (tt.clock > 0.001) {
+      const squash = Math.abs(sx) || 0.0008;
+      const { time, date } = formatClock(new Date(Date.now()));
+      ctx.save();
+      ctx.translate(0, -lift * 4);
+      ctx.scale(squash, 1);
+      ctx.translate(-size / 2, -size / 2);
+      drawSleeveClock(ctx, size, palette, tt.clock, time, date);
+      ctx.restore();
+    }
 
     // Canto del cartón: cuando la funda está casi de perfil sólo se ve el
     // espesor del material, no una línea.
@@ -519,6 +540,99 @@ export class Scene {
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  // ---------------------------------------------------------- reloj de día
+
+  /**
+   * Tarjeta con la hora para cuando el tocadiscos se usa *mientras* suena.
+   *
+   * El reloj de reposo se imprime en el fajín de la funda y llega solo: a los
+   * sesenta segundos en pausa. Éste es el otro reloj, el de sobremesa: un
+   * papelito apoyado en la mesa, opcional, que no tapa la carátula ni apaga la
+   * escena. Vive arriba a la izquierda, en la luz, donde el ojo cae primero.
+   */
+  private drawDeskClock(palette: Palette): void {
+    const alpha = this.turntable.clockTag;
+    if (alpha < 0.02) return;
+
+    const { time, date } = formatClock(new Date(Date.now()));
+    const key = `${time}|${date}|${palette.paper}|${palette.ink}`;
+    if (!this.clockCard || key !== this.clockCardKey) {
+      this.clockCard = this.makeClockCard(time, date);
+      this.clockCardKey = key;
+    }
+    if (!this.clockCard) return;
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(CLOCK_CARD.x, CLOCK_CARD.y);
+    ctx.rotate(CLOCK_CARD.angle);
+    ctx.drawImage(
+      this.clockCard,
+      -CLOCK_CARD.w / 2 - CLOCK_PAD,
+      -CLOCK_CARD.h / 2 - CLOCK_PAD,
+    );
+    ctx.restore();
+  }
+
+  private makeClockCard(time: string, date: string): HTMLCanvasElement | null {
+    const w = CLOCK_CARD.w;
+    const h = CLOCK_CARD.h;
+    const pad = CLOCK_PAD;
+    const { canvas: surface, ctx } = makeSurface(w + pad * 2, h + pad * 2, this.dpr);
+
+    ctx.drawImage(makeShadowSprite(w, h, 4, 12, 'rgba(58,40,24,0.26)', 1.5), pad + 2, pad + 5);
+
+    ctx.save();
+    roundRectPath(ctx, pad, pad, w, h, 3.5);
+    const paper = ctx.createLinearGradient(pad, pad, pad + w * 0.45, pad + h);
+    paper.addColorStop(0, hsl(40, 0.26, 0.935));
+    paper.addColorStop(0.62, hsl(39, 0.24, 0.905));
+    paper.addColorStop(1, hsl(37, 0.22, 0.858));
+    ctx.fillStyle = paper;
+    ctx.fill();
+    ctx.clip();
+    const grain = ctx.createPattern(this.grain, 'repeat');
+    if (grain) {
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = grain;
+      ctx.fillRect(pad, pad, w, h);
+      ctx.globalAlpha = 1;
+    }
+
+    const ink = 'rgba(52,38,24,0.94)';
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+
+    ctx.fillStyle = ink;
+    ctx.font = `500 ${Math.round(h * 0.4)}px Georgia, "Times New Roman", serif`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '-0.01em';
+    ctx.fillText(time, pad + 15, pad + h * 0.55);
+
+    const ruleY = pad + h * 0.66;
+    ctx.strokeStyle = 'rgba(70,52,34,0.26)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad + 15, ruleY);
+    ctx.lineTo(pad + w - 15, ruleY);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(58,44,30,0.72)';
+    ctx.font = `500 ${Math.round(h * 0.088)}px "Segoe UI", system-ui, sans-serif`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0.12em';
+    ctx.fillText(date.toUpperCase(), pad + 15, pad + h * 0.86);
+    ctx.restore();
+
+    ctx.save();
+    roundRectPath(ctx, pad + 0.5, pad + 0.5, w - 1, h - 1, 3.5);
+    ctx.strokeStyle = 'rgba(70,52,34,0.22)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+
+    return surface;
   }
 
   // ---------------------------------------------------------------- ambiente

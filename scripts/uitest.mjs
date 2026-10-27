@@ -67,7 +67,7 @@ function makeTurntable() {
   };
 }
 
-const prefs = { discTexture: 'marble', rpm: 33, foley: 0.55 };
+const prefs = { discTexture: 'marble', rpm: 33, foley: 0.55, clockWhilePlaying: false };
 const notices = [];
 const prefEvents = [];
 const turntable = makeTurntable();
@@ -202,6 +202,20 @@ check('cambiar el volumen no obliga a redibujar el panel', el('t-state').textCon
 foley.dispatch('change');
 check('soltar el deslizador no rompe nada', premio(() => panel.refresh()));
 
+// ------------------------------------------------------------------ reloj de día
+group('Reloj mientras suena');
+const clockOn = document.querySelector('#clock-switch [data-clock="on"]');
+const clockOff = document.querySelector('#clock-switch [data-clock="off"]');
+check('el módulo del reloj existe', Boolean(clockOn && clockOff));
+check('arranca apagado', clockOff.classList.contains('is-active') && !prefs.clockWhilePlaying);
+clockOn.dispatch('click');
+check('encenderlo cambia la preferencia', prefs.clockWhilePlaying === true);
+check('y el motor lo recibe', prefEvents.at(-1)?.clockWhilePlaying === true);
+check('el aviso explica qué va a pasar', (notices.at(-1) ?? '').includes('Reloj'), notices.at(-1));
+check('el interruptor se mueve', clockOn.classList.contains('is-active') && !clockOff.classList.contains('is-active'));
+clockOff.dispatch('click');
+check('apagarlo vuelve atrás', prefs.clockWhilePlaying === false);
+
 // ---------------------------------------------------------------- puente a la app
 group('Puente a la app activa');
 const source = el('source');
@@ -220,7 +234,7 @@ check('soltar después no vuelve a abrir', turntable.calls.filter((c) => c.start
 
 // ------------------------------------------------------------------- preferencias
 group('Preferencias persistentes');
-check('cada cambio entrega el objeto completo', prefEvents.every((p) => 'discTexture' in p && 'rpm' in p && 'foley' in p));
+check('cada cambio entrega el objeto completo', prefEvents.every((p) => 'discTexture' in p && 'rpm' in p && 'foley' in p && 'clockWhilePlaying' in p));
 
 function premio(fn) {
   try {

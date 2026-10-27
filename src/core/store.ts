@@ -18,6 +18,9 @@ export const loadPreferences = (): Preferences => {
     if (typeof saved.foley === 'number' && Number.isFinite(saved.foley)) {
       prefs.foley = Math.min(1, Math.max(0, saved.foley));
     }
+    if (typeof saved.clockWhilePlaying === 'boolean') {
+      prefs.clockWhilePlaying = saved.clockWhilePlaying;
+    }
   } catch {
     // localStorage puede fallar en modo privado: seguimos con los valores por defecto.
   }

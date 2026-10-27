@@ -24,10 +24,10 @@ import {
 const scenario = (process.argv[2] ?? 'desk').toLowerCase();
 /** El reverso de la carátula es la fase F4; el resto son escenas de F1/F2. */
 const LINER = new Set(['liner', 'nolyrics', 'instrumental', 'flipmid']);
-const outFile = path.resolve(
-  'docs/captures',
-  `${LINER.has(scenario) ? 'f4' : 'f1'}-${scenario}.png`,
-);
+/** El reloj de día (la hora mientras suena) es la fase F5. */
+const CLOCK = new Set(['clocktag']);
+const prefix = LINER.has(scenario) ? 'f4' : CLOCK.has(scenario) ? 'f5' : 'f1';
+const outFile = path.resolve('docs/captures', `${prefix}-${scenario}.png`);
 const FAKE_FPS = 1000 / STEP;
 
 installFonts();
@@ -116,10 +116,36 @@ if (scenario === 'clock') {
   tick(70 * FAKE_FPS);
 }
 
+// El caso que reportó el usuario: dormir con la letra a la vista. La funda debe
+// girarse sola y la hora tiene que verse igual.
+if (scenario === 'clocksleep') {
+  turntable.pointerDown('sleeve', LAYOUT.sleeve.cx, LAYOUT.sleeve.cy);
+  tick(120);
+  turntable.togglePlay();
+  tick(70 * FAKE_FPS);
+}
+
 if (scenario === 'free') {
   turntable.pointerDown('arm', LAYOUT.arm.px, LAYOUT.arm.py);
   turntable.pointerMove(LAYOUT.disc.cx - 40, LAYOUT.disc.cy);
   tick(30);
+}
+
+// Estado imposible en vivo (el tocadiscos gira la funda solo): sirve para
+// comprobar que el fajín se imprime sin espejo sobre la contraportada.
+if (scenario === 'clockback') {
+  turntable.togglePlay();
+  tick(70 * FAKE_FPS);
+  turntable.flipTarget = 1;
+  turntable.flipFrom = 1;
+  turntable.flip = 1;
+  turntable.flipAt = clock.now - 1000;
+}
+
+// Reloj de día: la hora impresa en un papelito mientras la música suena.
+if (scenario === 'clocktag') {
+  turntable.setPreferences({ ...DEFAULT_PREFERENCES, clockWhilePlaying: true });
+  tick(60);
 }
 
 scene.render(clock.now);

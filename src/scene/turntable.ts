@@ -39,6 +39,16 @@ const FLIP_MS = 560;
  */
 const SPIN_DISPLAY = 1.8 / 5; // 1,8 s por vuelta a 33⅓ RPM, mostrados en 5 s
 
+/**
+ * Un toque corto sobre el vinilo es "pausa"; mantener el dedo es "freno".
+ *
+ * Con el dedo apoyado el plato se detiene y la música se calla; al levantar,
+ * lo natural es que vuelva a sonar. Pero un toque seco se siente como un
+ * interruptor: el disco se queda parado y la música en pausa hasta que vuelvas
+ * a tocarlo. De ahí el umbral: por debajo, toque; por encima, mano apoyada.
+ */
+const TAP_MS = 300;
+
 export class Turntable {
   readonly foley = new Foley();
 
@@ -65,6 +75,8 @@ export class Turntable {
   flip = 0;
   flipTarget = 0;
   clock = 0;
+  /** 0..1 presencia del reloj de sobremesa (papelito con la hora, opcional). */
+  clockTag = 0;
   braking = 0;
   dragArm = false;
 
@@ -86,6 +98,9 @@ export class Turntable {
   private scrubbing = false;
   private scrubAngle = 0;
   private scrubStart = 0;
+  private discDownAt = 0;
+  private discWasPlaying = false;
+  private scrubMoved = false;
   private armDragAngle = 0;
   private armSnapBack = 0;
   private lyricsToken = 0;
@@ -154,7 +169,8 @@ export class Turntable {
       Math.abs(this.armLift - (this.playing ? 0 : 1)) < 0.02 &&
       Math.abs(this.discOut - this.discTarget) < 0.005 &&
       Math.abs(this.flip - this.flipTarget) < 0.002 &&
-      Math.abs(this.clock - this.clockTarget) < 0.004
+      Math.abs(this.clock - this.clockTarget) < 0.004 &&
+      Math.abs(this.clockTag - this.clockTagTarget) < 0.004
     );
   }
 
@@ -187,6 +203,24 @@ export class Turntable {
   /** ¿La hora ya está impresa en la funda? */
   get clockShown(): boolean {
     return this.clock > 0.5;
+  }
+
+  /**
+   * ¿Se está enseñando el papelito con la hora? Es la versión "de día" del
+   * reloj: mientras suena música y el usuario lo pidió, la hora vive en una
+   * tarjeta sobre la mesa en vez de esperar al reposo.
+   */
+  get clockTagShown(): boolean {
+    return this.clockTag > 0.5;
+  }
+
+  private get clockTagTarget(): number {
+    if (!this.prefs.clockWhilePlaying) return 0;
+    // Sin disco no hay tarjeta: la mesa vacía ya se convierte en reloj sola.
+    if (!this.track) return 0;
+    // Si manda el reloj de reposo, el fajín de la funda ya está imprimiendo la hora.
+    if (this.clock > 0.35) return 0;
+    return 1;
   }
 
   /** Atajo del panel de pruebas: entra en modo reloj sin esperar el minuto. */
@@ -307,6 +341,16 @@ export class Turntable {
     }
 
     this.clock = approach(this.clock, this.clockTarget, 0.55, dt);
+    this.clockTag = approach(this.clockTag, this.clockTagTarget, 0.45, dt);
+
+    // Si el tocadiscos se duerme con la funda del revés (leyendo la letra), la
+    // funda se gira sola para dejar la portada y la hora a la vista: en la mesa
+    // nadie deja un disco dormido con la contraportada mirando al techo.
+    if (this.clock > 0.06 && this.flipTarget === 1) {
+      this.flipFrom = this.flip;
+      this.flipAt = now;
+      this.flipTarget = 0;
+    }
 
     // El disco entra y sale de la funda: una sola coordenada gobierna todo.
     // Entra rápido (el gesto tiene que sentirse firme) y vuelve a salir más despacio.
@@ -402,6 +446,9 @@ export class Turntable {
     }
 
     if (target === 'disc' || target === 'label') {
+      this.discDownAt = performance.now();
+      this.discWasPlaying = this.playing;
+      this.scrubMoved = false;
       this.braking = 1;
       this.scrubbing = true;
       this.scrubStart = this.progress;
@@ -456,6 +503,9 @@ export class Turntable {
       let delta = angle - this.scrubAngle;
       if (delta > Math.PI) delta -= Math.PI * 2;
       if (delta < -Math.PI) delta += Math.PI * 2;
+      // Girar el vinilo es un arrastre, no un toque: en cuanto el dedo se mueve
+      // el gesto deja de ser "pausa" y pasa a ser "buscar en el surco".
+      if (Math.abs(delta) > 0.0005) this.scrubMoved = true;
       if (this.canSeek) {
         this.progress = clamp(
           this.progress + (delta / (Math.PI * 2)) * 14,
@@ -497,12 +547,33 @@ export class Turntable {
     if (this.scrubbing) {
       this.scrubbing = false;
       this.braking = 0;
+      const held = performance.now() - this.discDownAt;
+      const tap = held < TAP_MS && !this.scrubMoved;
+
+      if (tap) {
+        // Toque seco: es un interruptor. Si sonaba, se queda en pausa; si estaba
+        // parado, arranca. Sin seek: no hubo arrastre que valga.
+        this.pausedAt = performance.now();
+        if (this.discWasPlaying) {
+          this.playing = false;
+          this.stopCrackle();
+          this.foley.switchClick(false);
+        } else {
+          void this.bridge.play();
+          this.playing = true;
+          this.pausedAt = 0;
+          this.foley.switchClick(true);
+        }
+        this.onChange?.();
+        return;
+      }
+
+      // Mano apoyada: al levantar, el plato vuelve a girar donde estaba.
       if (this.canSeek) {
         void this.bridge.seek(this.progress);
       } else {
         this.progress = this.scrubStart;
       }
-      // El motor vuelve a arrancar.
       void this.bridge.play();
       this.playing = true;
       this.pausedAt = 0;

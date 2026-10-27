@@ -94,8 +94,11 @@ SpinDisk/
 
 **El motor completo está escrito, compila sin errores, dibuja, su física está medida y el shell
 nativo está escrito.** F0 a F7 cerraron; F8 (APK en la nube) y F9 (medición en la tablet) siguen
-pendientes. Hay cinco bancos, ninguno necesita navegador: `scripts/sim.mjs` (49 comprobaciones de
-física, avanza el tiempo a mano), `scripts/uitest.mjs` (76 de la consola y del panel F2, que
+pendientes. La capa DOM ya se mira en el navegador del usuario, que encontró tres fallos de
+sensación que ningún banco veía: el giro iba al revés del dedo, giraba demasiado rápido y un toque
+en el vinilo dejaba la música en pausa para siempre. Hay cinco bancos, ninguno necesita navegador:
+`scripts/sim.mjs` (62 comprobaciones de física, avanza el tiempo a mano), `scripts/uitest.mjs` (83
+de la consola y del panel F2, que
 ejecutan su código real contra el `index.html` verdadero con un DOM mínimo),
 `scripts/audiotest.mjs` (43 del motor Foley sobre un `AudioContext` falso),
 `scripts/nativecheck.mjs` (30 del contrato entre el TypeScript y el Kotlin, por análisis estático)
@@ -109,26 +112,28 @@ Chrome, así que la verificación visual es un PNG generado por Node.
 | Contrato + tienda de preferencias | Escrito y compilando |
 | Paleta armónica desde portada | Escrito, verificado con portada real |
 | Vinilo marmoleado + surcos + galleta | Escrito, verificado |
-| Funda (frente, reverso, reloj) | ✅ Verificada · cinco capturas de reverso y de reloj |
+| Funda (frente, reverso, reloj) | ✅ Verificada · siete capturas de reverso, reloj y sueño |
 | Brazo, plato, mesa, sombras | Escrito, verificado |
-| Física y gestos | ✅ Verificado con `scripts/sim.mjs` · 49/49 |
+| Física y gestos | ✅ Verificado con `scripts/sim.mjs` · 62/62 |
+| Toque seco y mano apoyada | ✅ Verificado · el toque deja pausa, mantener frena y al soltar sigue |
+| Reloj de día (opcional) | ✅ Verificado · `f5-clocktag.png` · asoma en 1,35 s |
 | Puente sandbox + búsqueda iTunes | Escrito, con cola de pistas; probado con `fetch` simulado |
 | Puente Android (cliente) | ✅ Verificado con `scripts/nativebridge.mjs` · 29/29 |
 | Shell Kotlin + manifiesto + Gradle | ✅ Escrito · contrato verificado 30/30 · **sin compilar** |
 | Letras LRCLIB + caché | Escrito, verificado (59 líneas reales) |
 | Foley sintetizado | ✅ Verificado con `scripts/audiotest.mjs` · 43/43 |
-| Consola de control | ✅ Verificada con `scripts/uitest.mjs` · 45/45 |
+| Consola de control | ✅ Verificada con `scripts/uitest.mjs` · 52/52 |
 | Panel F2 | ✅ Verificado con `scripts/uitest.mjs` · 24/24 |
 | Aviso del permiso (tablet) | ✅ Verificado con `scripts/uitest.mjs` · 7/7 |
 | Comprobación de tipos | ✅ `node scripts/check.mjs` · 19 archivos, 0 errores |
 | Compilación | ✅ `node scripts/build.mjs` · 19 módulos + 2 estáticos, ~1,2 s |
 | Copia a la tablet | ✅ `node scripts/native.mjs` · 21 archivos, 160 KB (tope 15 MB) |
-| Banco de física | ✅ `node scripts/sim.mjs` · 49/49 comprobaciones |
-| Banco de interfaz | ✅ `node scripts/uitest.mjs` · 76/76 comprobaciones |
+| Banco de física | ✅ `node scripts/sim.mjs` · 62/62 comprobaciones |
+| Banco de interfaz | ✅ `node scripts/uitest.mjs` · 83/83 comprobaciones |
 | Banco de audio | ✅ `node scripts/audiotest.mjs` · 43/43 comprobaciones |
 | Banco del contrato nativo | ✅ `node scripts/nativecheck.mjs` · 30/30 comprobaciones |
 | Banco del puente nativo | ✅ `node scripts/nativebridge.mjs` · 29/29 comprobaciones |
-| Captura visual | ✅ nueve escenarios + tira de fotogramas en `docs/captures/` |
+| Captura visual | ✅ doce escenarios + tira de fotogramas en `docs/captures/` |
 | Compilación del APK | Pendiente (F8, en GitHub Actions) |
 | Prueba en tablet | Pendiente (F8) |
 
@@ -260,6 +265,15 @@ volteo: pasa de canto en el fotograma 17 de 31 y completa el giro en 0,52 s.
 - [x] Paleta reposada de bajo brillo, hora y fecha en un fajín de papel sobre la funda
 - [x] Un toque en cualquier parte despierta y reanuda
 - [x] Repintado a un dibujo por minuto (la escena queda `settled`; medido, no supuesto)
+- [x] **Reloj de día opcional:** con la preferencia encendida la hora se queda impresa en un
+      papelito mientras la música suena (asoma en 1,35 s, no enciende el fajín de reposo y se
+      retira en 1,72 s al apagarla). El fajín de reposo manda cuando llega.
+- [x] **Dormirse con la letra a la vista** giraba la funda al reverso y sólo se veía la pantalla
+      oscurecida: ahora la funda se vuelve sola a la portada en 1,65 s y el fajín se imprime sobre
+      la cara que esté mirando, sin espejo (`f1-clocksleep.png`, `f1-clockback.png`).
+- [x] **Toque seco en el vinilo:** un toque corto sin arrastre deja la música en pausa (y otro la
+      arranca); mantener el dedo sigue siendo freno con la aguja apoyada. Umbral `TAP_MS = 300` y
+      `scrubMoved` para que un arrastre rápido nunca se confunda con un toque.
 - [ ] **Pendiente de F5:** contar los repintados reales durante varios minutos en el navegador.
       El reloj sólo despertaba en el cambio de minuto, así que podía aparecer hasta dos minutos
       tarde; ya se despierta también en el instante exacto (`msUntilClock`) y el panel F2 lo
