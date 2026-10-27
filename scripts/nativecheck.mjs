@@ -172,9 +172,9 @@ check(
   'com.spindisk.tablet',
 );
 check(
-  'no hay dependencias de terceros',
-  /dependencies\s*\{\s*\}/.test(gradleApp),
-  'cero',
+  'sólo depende de la biblioteca estándar de Kotlin',
+  /kotlin-stdlib/.test(gradleApp) && !/androidx\.|com\.google\.android\.material/.test(gradleApp),
+  'cero terceros; la stdlib va explícita',
 );
 check(
   'compileSdk 34 y minSdk 24',

@@ -63,6 +63,27 @@ jobs:
         working-directory: android
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
+      # Un APK sin código dentro se instala y se cierra al instante, sin decir
+      # nada. Este paso lo caza antes de que llegue al teléfono: si el dex pesa
+      # menos de lo que pesa la biblioteca estándar de Kotlin, algo se perdió.
+      - name: Revisar el APK
+        run: |
+          set -e
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          ls -l "$apk"
+          unzip -l "$apk" | grep -E 'classes[0-9]*\.dex' || true
+          dex=$(unzip -l "$apk" | awk '/classes[0-9]*\.dex/ { total += $1 } END { print total + 0 }')
+          assets=$(unzip -l "$apk" | awk '/assets\/www\// { total += $1 } END { print total + 0 }')
+          echo "dex: $dex bytes · assets/www: $assets bytes"
+          if [ "$dex" -lt 300000 ]; then
+            echo "::error::El APK no lleva el código dentro (dex de $dex bytes)."
+            exit 1
+          fi
+          if [ "$assets" -lt 60000 ]; then
+            echo "::error::El APK no lleva la interfaz dentro (assets de $assets bytes)."
+            exit 1
+          fi
+
       # Con nombre de archivo entendible al llegar a la tablet.
       - name: Preparar el artefacto
         run: cp android/app/build/outputs/apk/debug/app-debug.apk spindisk.apk

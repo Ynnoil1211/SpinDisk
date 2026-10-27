@@ -20,6 +20,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -38,26 +39,28 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Lo primero de todo: si algo revienta, que quede escrito y que se vea.
+        // Un fallo antes de esto deja la app cerrándose sin decir nada, que es
+        // justo lo que no se puede depurar en un teléfono ajeno.
         recordCrashes()
+        showLastCrashIfAny()
 
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        goFullscreen()
+        try {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            goFullscreen()
 
-        val view = runCatching { buildWeb() }.getOrElse { error ->
+            val view = buildWeb()
+            web = view
+            setContentView(view)
+
+            MediaHub.sink = { json -> runOnUiThread { pushToWeb(json) } }
+
+            view.loadUrl("file:///android_asset/www/index.html")
+        } catch (error: Throwable) {
             // Si el motor del sistema falla en un aparato concreto, es mejor
             // contarlo en pantalla que desaparecer sin explicación.
             showFailure(error)
-            return
         }
-
-        web = view
-        setContentView(view)
-
-        MediaHub.sink = { json -> runOnUiThread { pushToWeb(json) } }
-
-        view.loadUrl("file:///android_asset/www/index.html")
-
-        showLastCrashIfAny()
     }
 
     /** La WebView con su configuración y la portada interceptada. */
@@ -225,6 +228,15 @@ class MainActivity : Activity() {
                 crashFile().writeText(
                     "${error.javaClass.name}: ${error.message}\n\n${error.stackTraceToString()}",
                 )
+            }
+            // En un aparato ajeno nadie va a conectar un cable: un aviso del
+            // sistema con el tipo de fallo ya permite tirar del hilo.
+            runCatching {
+                Toast.makeText(
+                    applicationContext,
+                    "SpinDisk falló: ${error.javaClass.simpleName}",
+                    Toast.LENGTH_LONG,
+                ).show()
             }
             previous?.uncaughtException(thread, error)
         }

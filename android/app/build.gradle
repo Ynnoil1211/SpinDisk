@@ -46,5 +46,10 @@ android {
     }
 }
 
-// Ni una dependencia: la app es una WebView del sistema + tres archivos Kotlin.
-dependencies {}
+// La única dependencia es la biblioteca estándar de Kotlin, y va escrita a mano
+// a propósito: el plugin la añade solo, pero si algún día deja de hacerlo el APK
+// saldría sin ella y la app se cerraría al instante en cualquier teléfono con
+// «NoClassDefFoundError», sin pantalla y sin pista. Mejor explícito.
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
+}
