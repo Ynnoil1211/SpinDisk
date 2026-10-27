@@ -30,6 +30,8 @@ node scripts/dev.mjs # sirve http://127.0.0.1:5173 y recompila al guardar
 | `npm run native` | copia `dist/` a `android/app/src/main/assets/www` y pesa el resultado |
 | `npm run native:check` | verifica el contrato TypeScript ↔ Kotlin sin compilar nada (30) |
 | `npm run bridge` | prueba el puente nativo y la escena contra un `SpinDiskNative` falso (29) |
+| `npm run sandbox` | comprueba que el simulador encadena canciones y respeta Free/Premium (9) |
+| `npm run perf` | mide el dibujo: girando ~1,2 ms, dormido ~1,1 ms |
 
 En el navegador, **F2** abre el panel de pruebas: busca una canción real (portada y letra
 incluidas), cambia entre Spotify Free y Premium, y simula cinco saltos seguidos.

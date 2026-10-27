@@ -368,11 +368,30 @@ Spotify de verdad; con YouTube, igual. *(Pendiente de la primera sesión en la t
 - [ ] Peso real del APK y de los datos
 - [ ] RAM en reposo, en reproducción y en modo reloj
 - [ ] Consumo de batería en una sesión de 3 horas
-- [ ] Perfilado de dibujo: qué se cachea y qué se redibuja
+- [x] Perfilado de dibujo: qué se cachea y qué se redibuja
 - [ ] Ajuste de la tasa de refresco si hace falta
 
+**Perfilado hecho en este PC** (`npm run perf`, peor caso: lienzo 2560×1600, Skia en
+CPU sin GPU, así que los milisegundos son techo pesimista):
+
+| Medición | Resultado | Lectura |
+| --- | --- | --- |
+| Fotograma girando (mediana) | 1,2 ms | el dibujo cabe de sobra en 16,7 ms |
+| Fotograma dormido (mediana) | **1,12 ms** | antes 47–62 ms: el fajín se redibujaba entero |
+| Girando ÷ dormido | 1,07× | la regla «el reposo no cuesta más» se cumple |
+| Primera textura de un disco nuevo | 183 ms | ocurre con el disco todavía dentro de la funda |
+| Fuga de heap en 800 fotogramas | 0 MB | sin fugas de objetos |
+| RSS del motor en Node | 85 MB | incluye framebuffer de 16 MB; hay que confirmarlo en la tablet |
+
+Lo que se cachea ahora: la textura marmoleada por pista, los surcos y el reflejo
+especular (capa fija que no rota), el fondo de la mesa, las dos caras de la funda, el
+fajín de la hora (una impresión por minuto) y el papelito del reloj de día. Lo que se
+redibuja cada fotograma: el disco girado, la galleta, el brazo y los sprites ya
+compuestos.
+
 **Aceptación:** números dentro del presupuesto, o un informe de por qué no y qué se
-sacrificó.
+sacrificó. Los tres primeros puntos necesitan la tablet y un APK instalado: son los
+únicos que siguen abiertos.
 
 ---
 
@@ -477,6 +496,8 @@ plugin de Android, nombre de la tarea Gradle, ruta del SDK, `exported` en el man
 falla, se corrige con el mensaje del runner delante, no a ciegas.
 
 Después: **F9 medición** en la tablet (memoria, tamaño instalado, repintados en reposo, batería
-en tres horas) y ajuste fino. La deuda pendiente de F5 —contar los repintados reales en el
-navegador— entra en F9.
+en tres horas) y ajuste fino. El perfilado de dibujo ya está hecho en este PC y el reposo bajó
+de 47 ms a 1,1 ms cacheando el fajín de la hora; lo que queda de F9 no se puede medir sin un
+APK instalado. La deuda pendiente de F5 —contar los repintados reales en el navegador— entra
+también en F9, y el `push` sigue siendo la primera acción que necesita tu mano.
 
