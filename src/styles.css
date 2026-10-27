@@ -727,25 +727,59 @@ body.is-playing .tbtn--play .icon-play {
   transform: scale(0.97);
 }
 
-@media (max-width: 900px) {
-  .module--timeline {
-    min-width: 120px;
-  }
-  .source__text small {
-    display: none;
-  }
-}
-
-/* En pantallas muy bajas (tablet en horizontal con barra), comprime el panel. */
+/* Pantallas bajas (tablet en horizontal con barra, o un móvil tumbado): el panel
+   se comprime y, si aun así no cabe, se desplaza en horizontal en vez de
+   desbordarse fuera de la pantalla. */
 @media (max-height: 620px) {
   .console {
-    padding: 8px 16px;
+    left: 12px;
+    right: 12px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    padding: 8px 14px;
+    border-radius: 18px;
   }
   .console__inner {
-    min-height: 78px;
+    min-height: 72px;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .console__inner::-webkit-scrollbar {
+    display: none;
+  }
+  .console__grip {
+    top: 3px;
+    width: 38px;
+    margin-left: -19px;
+  }
+  .module {
+    padding: 4px 8px;
+    gap: 6px;
   }
   .tbtn--play {
     width: 44px;
     height: 44px;
+  }
+  .swatch {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* Pantallas estrechas: se quedan los controles, se van las etiquetas. */
+@media (max-width: 820px) {
+  .console {
+    left: 8px;
+    right: 8px;
+    padding: 8px 10px;
+  }
+  .module--textures .module__label,
+  .module--foley .module__label,
+  .module--clock .module__label {
+    display: none;
+  }
+  .module--timeline {
+    min-width: 104px;
   }
 }

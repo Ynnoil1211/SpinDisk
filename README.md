@@ -56,11 +56,18 @@ incluidas), cambia entre Spotify Free y Premium, y simula cinco saltos seguidos.
 | `black` `cream` `glass` | las otras tres texturas del vinilo |
 | `free` | el brazo rebotando en una cuenta gratuita |
 
+Para ver cómo queda en otro tamaño de pantalla, `SPINDISK_VIEWPORT=850x393 node scripts/preview.mjs track`
+dibuja la escena como en un móvil tumbado. En 16:10 (la tablet) sale exactamente como se diseñó; en
+pantallas más anchas el motor agranda la escena un 18 % y recorta un poco de aire arriba y abajo.
+
 `node scripts/sim.mjs` mide la física en cambio: 62 comprobaciones con umbrales (freno, arranque,
 geometría del brazo, giro con el dedo, antirrebote, toque seco, volteo de la funda, reposo,
 atajo al reloj) y una tira de cuatro fotogramas en `docs/captures/f2-freno.png`.
-`node scripts/uitest.mjs` hace lo mismo con la consola y el panel F2: 83 comprobaciones sobre el
+`node scripts/uitest.mjs` hace lo mismo con la consola y el panel F2: 89 comprobaciones sobre el
 `index.html` real con un DOM mínimo y reloj falso. Los dos terminan en verde o con código 1.
+
+El panel se abre deslizando desde el borde inferior (o tocando la esquina superior izquierda) y
+**se cierra deslizándolo hacia abajo**, además de a los 3 s sin tocarlo.
 
 El panel F2 incluye un botón **«Modo reloj ahora»**: adelanta el minuto de reposo para ver el
 reloj de escritorio sin esperar, y muestra la cuenta atrás real cuando está en pausa.

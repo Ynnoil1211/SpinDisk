@@ -8,8 +8,11 @@
 import { createCanvas, GlobalFonts, Image as SkiaImage } from '@napi-rs/canvas';
 import { compile, loadProject } from './tsc-project.mjs';
 
-export const WIDTH = 1280;
-export const HEIGHT = 800;
+// La vista previa puede pedir otra pantalla con `SPINDISK_VIEWPORT=850x393`
+// (un móvil en horizontal). Los bancos usan el tamaño de diseño de la tablet.
+const [envWidth, envHeight] = (process.env.SPINDISK_VIEWPORT ?? '').split('x').map(Number);
+export const WIDTH = Number.isFinite(envWidth) && envWidth > 0 ? envWidth : 1280;
+export const HEIGHT = Number.isFinite(envHeight) && envHeight > 0 ? envHeight : 800;
 export const FPS = 60;
 export const STEP = 1000 / FPS;
 

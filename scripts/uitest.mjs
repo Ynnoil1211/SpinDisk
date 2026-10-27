@@ -124,6 +124,29 @@ clock.advance(2500);
 el('console').dispatch('pointermove');
 clock.advance(2500);
 check('mover el dedo por el panel también la mantiene', panel.isOpen === true);
+
+// El gesto de abrir, al revés: arrastrar hacia abajo lo devuelve a su sitio sin
+// esperar los tres segundos.
+el('console').dispatch('pointerdown', { clientY: 500, clientX: 400 });
+el('console').dispatch('pointermove', { clientY: 540, clientX: 402 });
+check('un arrastre corto no lo cierra', panel.isOpen === true);
+el('console').dispatch('pointermove', { clientY: 600, clientX: 406 });
+el('console').dispatch('pointerup', { clientY: 600, clientX: 406 });
+check('arrastrar hacia abajo lo cierra', panel.isOpen === false);
+check('y deja el cuerpo limpio', bodyClass('has-panel') === false);
+panel.open();
+check(
+  'vuelve a abrirse sin restos del arrastre',
+  panel.isOpen === true && (el('console').style.transform ?? '') === '',
+  el('console').style.transform,
+);
+// Un gesto claramente horizontal no debe moverlo: en pantallas estrechas esa
+// fila se desplaza de lado.
+el('console').dispatch('pointerdown', { clientY: 600, clientX: 200 });
+el('console').dispatch('pointermove', { clientY: 616, clientX: 380 });
+check('un gesto horizontal no lo arrastra', (el('console').style.transform ?? '') === '');
+el('console').dispatch('pointerup', { clientY: 616, clientX: 380 });
+check('y sigue abierto tras el gesto horizontal', panel.isOpen === true);
 panel.close();
 
 // -------------------------------------------------------------------- transporte

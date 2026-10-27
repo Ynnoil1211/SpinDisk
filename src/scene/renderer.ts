@@ -82,7 +82,14 @@ export class Scene {
     this.canvas.height = Math.round(height * dpr);
     this.canvas.style.width = `${width}px`;
     this.canvas.style.height = `${height}px`;
-    this.scale = Math.min(width / DESIGN.width, height / DESIGN.height);
+    // El espacio de diseño es 1280×800. En una pantalla de esa proporción se ve
+    // tal cual se dibujó; si es más ancha (móvil en horizontal, 21:9), el
+    // `contain` dejaría franjas vacías y todo empequeñecido, así que se agranda
+    // un 18 % —la composición tiene aire arriba y abajo de sobra— sin pasarse
+    // nunca del `cover`, que recortaría de más.
+    const contain = Math.min(width / DESIGN.width, height / DESIGN.height);
+    const cover = Math.max(width / DESIGN.width, height / DESIGN.height);
+    this.scale = Math.min(cover, contain * 1.18);
     this.ox = (width - DESIGN.width * this.scale) / 2;
     this.oy = (height - DESIGN.height * this.scale) / 2;
     this.backdrop = null;

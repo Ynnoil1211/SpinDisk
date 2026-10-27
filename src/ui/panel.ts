@@ -30,6 +30,10 @@ const SOURCE_TINT: Record<SourceApp, string> = {
 
 const HIDE_AFTER = 3000;
 const LONG_PRESS = 480;
+/** Cuánto hay que arrastrar el panel hacia abajo para devolverlo a su sitio. */
+const HIDE_SWIPE = 64;
+/** Debajo de esto el gesto todavía puede ser un toque. */
+const SWIPE_SLOP = 14;
 
 export class ConsolePanel {
   isOpen = false;
@@ -43,6 +47,10 @@ export class ConsolePanel {
   private pressTimer = 0;
   private pressing = false;
   private dragging = false;
+  /** Arrastre vertical del panel para devolverlo a su sitio. */
+  private swipeFromY: number | null = null;
+  private swipeFromX = 0;
+  private swipeDelta = 0;
 
   private fill: HTMLElement;
   private knob: HTMLElement;
@@ -89,6 +97,7 @@ export class ConsolePanel {
   private bind(): void {
     this.root.addEventListener('pointerdown', () => this.arm());
     this.root.addEventListener('pointermove', () => this.arm());
+    this.bindSwipeDown();
     this.root.addEventListener('focusin', () => this.arm());
 
     this.q('btn-prev').addEventListener('click', () => {
@@ -216,6 +225,49 @@ export class ConsolePanel {
     if (redraw) this.refresh();
   }
 
+  /**
+   * El gesto de abrir, al revés: arrastrar el panel hacia abajo lo devuelve a su
+   * sitio sin esperar los tres segundos. Se ignora si empieza sobre un control
+   * que ya usa el arrastre (la línea de tiempo o un selector) o si el gesto va
+   * más en horizontal que en vertical, para no pisar el desplazamiento de la
+   * fila de módulos en pantallas estrechas.
+   */
+  private bindSwipeDown(): void {
+    this.root.addEventListener('pointerdown', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target && target.closest('input, .swatch, .module--source')) {
+        this.swipeFromY = null;
+        return;
+      }
+      this.swipeFromY = event.clientY;
+      this.swipeFromX = event.clientX;
+      this.swipeDelta = 0;
+    });
+
+    this.root.addEventListener('pointermove', (event) => {
+      if (this.swipeFromY === null) return;
+      const dy = event.clientY - this.swipeFromY;
+      const dx = event.clientX - this.swipeFromX;
+      if (dy < SWIPE_SLOP || Math.abs(dx) > Math.abs(dy)) return;
+      this.swipeDelta = dy;
+      this.root.style.transform = `translateY(${dy.toFixed(0)}px)`;
+      this.root.style.opacity = String(Math.max(0.3, 1 - dy / 300));
+    });
+
+    const drop = (): void => {
+      if (this.swipeFromY === null) return;
+      const travelled = this.swipeDelta;
+      this.swipeFromY = null;
+      this.swipeDelta = 0;
+      this.root.style.transform = '';
+      this.root.style.opacity = '';
+      if (travelled > HIDE_SWIPE) this.close();
+      else this.arm();
+    };
+    this.root.addEventListener('pointerup', drop);
+    this.root.addEventListener('pointercancel', drop);
+  }
+
   open(): void {
     if (this.isOpen) {
       this.arm();
@@ -236,6 +288,12 @@ export class ConsolePanel {
     this.root.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('has-panel');
     window.clearTimeout(this.hideTimer);
+    // Si se cierra a mitad de un arrastre, el desplazamiento se queda pegado:
+    // hay que limpiarlo para que la próxima vez aparezca en su sitio.
+    this.swipeFromY = null;
+    this.swipeDelta = 0;
+    this.root.style.transform = '';
+    this.root.style.opacity = '';
     if (this.root.contains(document.activeElement)) {
       (document.activeElement as HTMLElement).blur();
     }
