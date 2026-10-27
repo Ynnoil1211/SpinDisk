@@ -639,7 +639,7 @@ export class Scene {
     if (alpha < 0.02) return;
 
     const { time, date } = formatClock(new Date(Date.now()));
-    const key = `${time}|${date}|${palette.paper}|${palette.ink}`;
+    const key = `${time}|${date}|${palette.paper}|${palette.ink}|${this.dpr}`;
     if (!this.clockCard || key !== this.clockCardKey) {
       this.clockCard = this.makeClockCard(time, date);
       this.clockCardKey = key;
@@ -647,7 +647,7 @@ export class Scene {
     if (!this.clockCard) return;
 
     // Anclaje relativo al borde visible real de la pantalla para que jamás se
-    // corte en tablets donde el escalado recorta ligeramente los laterales.
+    // corte en tablets o pantallas panorámicas donde el escalado recorta bordes.
     const visibleRight = this.scale > 0
       ? Math.min(DESIGN.width, (this.width - this.ox) / this.scale)
       : DESIGN.width;
@@ -655,8 +655,8 @@ export class Scene {
       ? Math.min(DESIGN.height, (this.height - this.oy) / this.scale)
       : DESIGN.height;
 
-    const marginX = 22;
-    const marginY = 20;
+    const marginX = 24;
+    const marginY = 22;
     const x = Math.min(CLOCK_CARD.x, visibleRight - CLOCK_CARD.w / 2 - marginX);
     const closedY = Math.min(CLOCK_CARD.y, visibleBottom - CLOCK_CARD.h / 2 - marginY);
 
@@ -665,7 +665,7 @@ export class Scene {
     const panelTopDesign = this.scale > 0
       ? (this.height - this.panelHeightPx - this.oy) / this.scale
       : DESIGN.height - 134;
-    const openY = Math.max(586, Math.min(closedY, panelTopDesign - CLOCK_CARD.h / 2 - 14));
+    const openY = Math.max(560, Math.min(closedY, panelTopDesign - CLOCK_CARD.h / 2 - 14));
     const y = closedY + (openY - closedY) * this.panelLift;
     const angle = CLOCK_CARD.angle * (1 - this.panelLift * 0.65);
 
@@ -678,6 +678,8 @@ export class Scene {
       this.clockCard,
       -CLOCK_CARD.w / 2 - CLOCK_PAD,
       -CLOCK_CARD.h / 2 - CLOCK_PAD,
+      CLOCK_CARD.w + CLOCK_PAD * 2,
+      CLOCK_CARD.h + CLOCK_PAD * 2,
     );
     ctx.restore();
   }
