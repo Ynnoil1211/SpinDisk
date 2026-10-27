@@ -13,6 +13,8 @@
     "sim": "node scripts/sim.mjs",
     "ui": "node scripts/uitest.mjs",
     "audio": "node scripts/audiotest.mjs",
+    "sandbox": "node scripts/sandbox.mjs",
+    "perf": "node --expose-gc scripts/perf.mjs",
     "native": "node scripts/native.mjs",
     "native:check": "node scripts/nativecheck.mjs",
     "bridge": "node scripts/nativebridge.mjs"

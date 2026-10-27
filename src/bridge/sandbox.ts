@@ -174,6 +174,14 @@ export class SandboxBridge implements PlayerBridge {
     if (!this.track || !this.playing) return;
     this.time += dt;
     if (this.track.duration > 0 && this.time >= this.track.duration - 0.15) {
+      // Con cola el disco sigue: la siguiente pista del álbum. Sin cola se
+      // reinicia, que es lo que hace un reproductor con una sola canción
+      // («repetir una»). El tocadiscos no decide esto en la tablet: allí lo
+      // manda Spotify y aquí lo imita el simulador.
+      if (this.queue.length > 1) {
+        this.step(1);
+        return;
+      }
       this.time = 0;
       this.lastTick = now;
       this.emit();

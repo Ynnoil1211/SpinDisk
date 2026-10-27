@@ -80,6 +80,9 @@ export const installDom = ({ offline = false } = {}) => {
     },
     setTimeout: (fn, ms) => setTimeout(fn, ms),
     clearTimeout: (id) => clearTimeout(id),
+    // El SandboxBridge late con temporizadores reales: sin estos dos no arranca.
+    setInterval: (fn, ms) => setInterval(fn, ms),
+    clearInterval: (id) => clearInterval(id),
   };
   globalThis.document = {
     createElement: (tag) => {

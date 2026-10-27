@@ -411,14 +411,12 @@ export const drawSleeveClock = (
   ctx.fillStyle = paper;
   ctx.fillRect(0, bandY, size, bandH);
 
-  // Grano del papel y los dos cantos impresos.
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, bandY, size, bandH);
-  ctx.clip();
+  // Grano del papel y los dos cantos impresos. Sin `clip`: el `drawImage` ya
+  // cae exactamente sobre la banda, y un recorte sobre el lienzo grande obliga
+  // a Skia a componer una capa por fotograma (medido: 47 ms).
   ctx.globalAlpha = alpha * 0.5;
   ctx.drawImage(getGrain(), 0, bandY, size, bandH);
-  ctx.restore();
+  ctx.globalAlpha = alpha;
 
   ctx.strokeStyle = 'rgba(70,52,34,0.34)';
   ctx.lineWidth = Math.max(1, size * 0.0022);
