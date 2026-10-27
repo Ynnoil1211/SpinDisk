@@ -47,11 +47,15 @@ const getTexture = (state: DiscState): HTMLCanvasElement => {
   const key = textureKey(state);
   const cached = textureCache.get(key);
   if (cached) return cached;
-  const canvas = makeMarbleTexture(marbleColors(state.palette), 384, state.seed + 1, state.texture);
+  let reuse: HTMLCanvasElement | null = null;
   if (textureCache.size >= MAX_TEXTURES) {
     const oldest = textureCache.keys().next().value;
-    if (oldest) textureCache.delete(oldest);
+    if (oldest) {
+      reuse = textureCache.get(oldest) ?? null;
+      textureCache.delete(oldest);
+    }
   }
+  const canvas = makeMarbleTexture(marbleColors(state.palette), 384, state.seed + 1, state.texture, reuse);
   textureCache.set(key, canvas);
   return canvas;
 };
@@ -135,14 +139,16 @@ const getOverlay = (radius: number, kind: DiscTexture): HTMLCanvasElement => {
   return surface.canvas;
 };
 
+const BASE_DISC_SHADOW = 'rgba(58, 44, 32, 0.30)';
+
 export const drawDiscShadow = (
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
   r: number,
-  palette: Palette,
+  _palette: Palette,
 ): void => {
-  const key = `${Math.round(r)}|${palette.shadow}`;
+  const key = `${Math.round(r)}`;
   let sprite = shadowCache.get(key);
   const extent = Math.ceil(r * 1.1);
   if (!sprite) {
@@ -153,8 +159,8 @@ export const drawDiscShadow = (
     sctx.scale(1, 0.97);
     const grad = sctx.createRadialGradient(0, 0, r * 0.55, 0, 0, r * 1.08);
     grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(0.62, hexToRgba(palette.shadow, 0.35));
-    grad.addColorStop(0.9, hexToRgba(palette.shadow, 0.6));
+    grad.addColorStop(0.62, hexToRgba(BASE_DISC_SHADOW, 0.35));
+    grad.addColorStop(0.9, hexToRgba(BASE_DISC_SHADOW, 0.6));
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     sctx.fillStyle = grad;
     sctx.beginPath();
@@ -272,19 +278,31 @@ const drawLabel = (ctx: CanvasRenderingContext2D, state: DiscState): void => {
   ctx.restore();
 };
 
+export const hasSpinningDiscCached = (state: DiscState): boolean =>
+  spinningCache.has(spinningKey(state));
+
 /**
  * Pre-renderiza el cuerpo circular del disco junto con la galleta central.
  * Al girar el vinilo a 60 FPS sólo se rota este sprite con un `drawImage`,
  * evitando ejecutar `clip()`, gradientes y 80 `fillText` curvos en cada frame.
  */
-const getSpinningDisc = (state: DiscState): HTMLCanvasElement => {
+export const getSpinningDisc = (state: DiscState): HTMLCanvasElement => {
   const key = spinningKey(state);
   const cached = spinningCache.get(key);
   if (cached) return cached;
 
+  let reuse: HTMLCanvasElement | null = null;
+  if (spinningCache.size >= MAX_TEXTURES) {
+    const oldest = spinningCache.keys().next().value;
+    if (oldest) {
+      reuse = spinningCache.get(oldest) ?? null;
+      spinningCache.delete(oldest);
+    }
+  }
+
   const { r } = state;
   const texture = getTexture(state);
-  const surface = makeSurface(r * 2, r * 2, 1.5);
+  const surface = makeSurface(r * 2, r * 2, 1.5, reuse);
   const { ctx } = surface;
 
   ctx.save();
@@ -313,10 +331,6 @@ const getSpinningDisc = (state: DiscState): HTMLCanvasElement => {
 
   ctx.restore();
 
-  if (spinningCache.size >= MAX_TEXTURES) {
-    const oldest = spinningCache.keys().next().value;
-    if (oldest) spinningCache.delete(oldest);
-  }
   spinningCache.set(key, surface.canvas);
   return surface.canvas;
 };

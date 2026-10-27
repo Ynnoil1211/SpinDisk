@@ -11,6 +11,7 @@ import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import org.json.JSONObject
+import java.util.concurrent.Executors
 
 /**
  * El oído de la app.
@@ -27,14 +28,21 @@ import org.json.JSONObject
 class MediaListenerService : NotificationListenerService() {
 
     private val handler = Handler(Looper.getMainLooper())
+    private val artExecutor = Executors.newSingleThreadExecutor()
     private var polling = false
     private var sessionToken: MediaSession.Token? = null
-    private var lastMetadata: MediaMetadata? = null
     private var lastArtKey: String = ""
     private var lastCoverUrl: String? = null
+    private var artResolvedForKey: Boolean = false
+    private var resolvingArtKey: String = ""
 
     private val callback = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadata?) {
+            // Al recibir nueva metadata explícita (por ejemplo cuando la portada llega
+            // un instante después del título), permitimos re-evaluar la carátula.
+            if (lastCoverUrl == null) {
+                artResolvedForKey = false
+            }
             publish()
         }
 
@@ -45,6 +53,10 @@ class MediaListenerService : NotificationListenerService() {
         override fun onSessionDestroyed() {
             MediaHub.controller = null
             sessionToken = null
+            lastArtKey = ""
+            lastCoverUrl = null
+            artResolvedForKey = false
+            resolvingArtKey = ""
             MediaHub.publish("")
         }
     }
@@ -77,6 +89,7 @@ class MediaListenerService : NotificationListenerService() {
     override fun onDestroy() {
         polling = false
         handler.removeCallbacks(poll)
+        artExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -154,16 +167,34 @@ class MediaListenerService : NotificationListenerService() {
         val canSeek = state != null && (state.actions and PlaybackState.ACTION_SEEK_TO) != 0L
 
         val key = "$title|$artist|$album"
-        val coverUrl = if (metadata === lastMetadata && key == lastArtKey && lastCoverUrl != null) {
-            lastCoverUrl
-        } else {
-            val artwork = artworkOf(metadata)
-            val url = MediaHub.artUrl(artwork, key)
-            lastMetadata = metadata
+        if (key != lastArtKey) {
             lastArtKey = key
-            lastCoverUrl = url
-            url
+            lastCoverUrl = null
+            artResolvedForKey = false
         }
+
+        if (!artResolvedForKey && resolvingArtKey != key) {
+            val artwork = artworkOf(metadata)
+            if (artwork == null) {
+                lastCoverUrl = null
+                artResolvedForKey = true
+            } else {
+                resolvingArtKey = key
+                artExecutor.execute {
+                    val url = MediaHub.artUrl(artwork, key)
+                    handler.post {
+                        if (lastArtKey == key) {
+                            lastCoverUrl = url
+                            artResolvedForKey = true
+                            resolvingArtKey = ""
+                            publish()
+                        }
+                    }
+                }
+            }
+        }
+
+        val coverUrl = lastCoverUrl
 
         val json = JSONObject().apply {
             put("id", key)

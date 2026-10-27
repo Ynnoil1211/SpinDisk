@@ -204,7 +204,8 @@ window.addEventListener('keydown', (event) => {
 
 // ------------------------------------------------------------------------ bucle
 
-let last = performance.now();
+let last = 0;
+let smoothedDt = 1 / 60;
 let raf = 0;
 let idleTimer = 0;
 let lastPanelSync = 0;
@@ -221,8 +222,8 @@ function scheduleIdle(): void {
   idleTimer = window.setTimeout(
     () => {
       idleTimer = 0;
-      last = performance.now();
-      frame(performance.now());
+      last = 0;
+      raf = requestAnimationFrame(frame);
     },
     Math.max(240, ms + 60),
   );
@@ -230,13 +231,18 @@ function scheduleIdle(): void {
 
 function frame(now: number): void {
   raf = 0;
-  const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
+  let rawDt = 1 / 60;
+  if (last > 0) {
+    rawDt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
+  }
   last = now;
+  smoothedDt = smoothedDt + (rawDt - smoothedDt) * 0.25;
 
-  turntable.update(dt, now);
+  turntable.update(smoothedDt, now);
   scene.render(now);
 
   if (turntable.settled && !turntable.playing && activePointer === null && !scene.isTransitioning) {
+    last = 0;
     scheduleIdle();
     return;
   }
@@ -249,7 +255,6 @@ function kick(): void {
     idleTimer = 0;
   }
   if (!raf) {
-    last = performance.now();
     raf = requestAnimationFrame(frame);
   }
 }
@@ -263,6 +268,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
+    last = 0;
   } else {
     kick();
   }
@@ -282,7 +288,11 @@ window.setInterval(() => {
 // ------------------------------------------------------------------------ boot
 
 turntable.onChange = () => {
-  panel.refresh();
+  if (panel.isOpen) {
+    panel.refresh();
+  } else {
+    panel.syncBodyClasses();
+  }
   kick();
 };
 

@@ -6,7 +6,14 @@
  */
 
 import { LAYOUT, DESIGN, REST_ANGLE, needlePoint } from './layout.js';
-import { drawDisc, drawDiscShadow, clearTextureCache } from './disc.js';
+import {
+  drawDisc,
+  drawDiscShadow,
+  clearTextureCache,
+  getSpinningDisc,
+  hasSpinningDiscCached,
+  type DiscState,
+} from './disc.js';
 import {
   drawSleeveClock,
   makeSleeveBack,
@@ -21,10 +28,6 @@ import { formatClock } from '../util/math.js';
 import { SANS, SERIF } from '../theme/fonts.js';
 
 /**
- * Geometría del papelito con la hora. Se apoya arriba a la izquierda, en el
- * charco de luz, ligeramente torcido para que no parezca un widget.
- */
-/**
  * Geometría del papelito con la hora. Ubicado en la esquina inferior derecha,
  * en una zona despejada que no cubre la carátula, las letras, el vinilo,
  * el soporte de descanso del brazo, ni el panel inferior desplegable.
@@ -32,6 +35,12 @@ import { SANS, SERIF } from '../theme/fonts.js';
 const CLOCK_CARD = { x: 1138, y: 716, w: 196, h: 66, angle: 0.018 };
 /** Margen del sprite para que quepa la sombra difusa. */
 const CLOCK_PAD = 24;
+
+/** Dimensiones del sprite horizontal del brazo móvil (contrapeso + tubo + cabezal + base). */
+const ARM_SPRITE_OX = 120;
+const ARM_SPRITE_OY = 48;
+const ARM_SPRITE_W = 480;
+const ARM_SPRITE_H = 96;
 
 export class Scene {
   private canvas: HTMLCanvasElement;
@@ -50,6 +59,8 @@ export class Scene {
   private grain: HTMLCanvasElement;
 
   private front: HTMLCanvasElement | null = null;
+  private frontBufferA: HTMLCanvasElement | null = null;
+  private frontBufferB: HTMLCanvasElement | null = null;
   private frontKey = '';
   /** Funda anterior y marca de tiempo para el fundido entre portadas. */
   private prevFront: HTMLCanvasElement | null = null;
@@ -58,17 +69,23 @@ export class Scene {
   private back: HTMLCanvasElement | null = null;
   private backKey = '';
   private sleeveShadow: HTMLCanvasElement | null = null;
-  private sleeveShadowKey = '';
   private clockCard: HTMLCanvasElement | null = null;
   private clockCardKey = '';
   private clockBand: HTMLCanvasElement | null = null;
   private clockBandKey = '';
+
+  private armRestSprite: HTMLCanvasElement | null = null;
+  private armMovingSprite: HTMLCanvasElement | null = null;
+  private needleShadowSprite: HTMLCanvasElement | null = null;
+
   /** Desplazamiento dinámico (0..1) sincronizado con la apertura del panel inferior. */
   private panelLift = 0;
   private panelTarget = 0;
   private panelDragging = false;
   private panelHeightPx = 132;
   private lastRenderAt = 0;
+  /** Presupuesto por fotograma: como máximo 1 regeneración pesada de sprite por render(). */
+  private heavyBudgetUsed = false;
 
   constructor(canvas: HTMLCanvasElement, turntable: Turntable) {
     this.canvas = canvas;
@@ -89,7 +106,16 @@ export class Scene {
   }
 
   get isTransitioning(): boolean {
-    return this.prevFront !== null || Math.abs(this.panelLift - this.panelTarget) > 0.002;
+    const tt = this.turntable;
+    const palette = tt.palette;
+    const backdropDirty = `${this.width}x${this.height}|${palette.deskLight}|${palette.deskDark}` !== this.backdropKey;
+    const frontDirty = `${tt.cover?.currentSrc ?? 'none'}|${palette.paper}|${tt.track?.title ?? ''}` !== this.frontKey;
+    return (
+      this.prevFront !== null ||
+      Math.abs(this.panelLift - this.panelTarget) > 0.002 ||
+      backdropDirty ||
+      frontDirty
+    );
   }
 
   /** Sincroniza la posición del reloj con la apertura o arrastre del panel. */
@@ -121,7 +147,7 @@ export class Scene {
     this.scale = Math.min(cover, contain * 1.18);
     this.ox = (width - DESIGN.width * this.scale) / 2;
     this.oy = (height - DESIGN.height * this.scale) / 2;
-    this.backdrop = null;
+    this.backdropKey = '';
     this.frontKey = '';
     this.backKey = '';
   }
@@ -137,6 +163,8 @@ export class Scene {
   render(now: number): void {
     const dt = this.lastRenderAt > 0 ? Math.min(0.05, Math.max(0.001, (now - this.lastRenderAt) / 1000)) : 0.016;
     this.lastRenderAt = now;
+    this.heavyBudgetUsed = false;
+
     if (this.panelDragging) {
       this.panelLift = this.panelTarget;
     } else {
@@ -148,7 +176,15 @@ export class Scene {
     const ctx = this.ctx;
     const palette = tt.palette;
 
-    this.ensureBackdrop(palette);
+    // Frame budgeting: si la portada necesita actualizarse en este fotograma y
+    // ya existe un backdrop previo válido, actualizamos primero la portada (Fotograma A)
+    // y dejamos la regeneración del backdrop para el siguiente fotograma (Fotograma B).
+    const frontKey = `${tt.cover?.currentSrc ?? 'none'}|${palette.paper}|${tt.track?.title ?? ''}`;
+    const frontNeedsUpdate = frontKey !== this.frontKey || !this.front;
+    if (!this.backdrop || !frontNeedsUpdate) {
+      this.ensureBackdrop(palette);
+    }
+
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.drawImage(this.backdrop as HTMLCanvasElement, 0, 0, this.width, this.height);
 
@@ -174,12 +210,8 @@ export class Scene {
     const key = `${this.width}x${this.height}|${palette.deskLight}|${palette.deskDark}`;
     if (this.backdrop && key === this.backdropKey) return;
 
-    const surface = document.createElement('canvas');
-    surface.width = Math.round(this.width * this.dpr);
-    surface.height = Math.round(this.height * this.dpr);
-    const ctx = surface.getContext('2d');
-    if (!ctx) return;
-    ctx.scale(this.dpr, this.dpr);
+    this.heavyBudgetUsed = true;
+    const { canvas: surface, ctx } = makeSurface(this.width, this.height, this.dpr, this.backdrop);
     const w = this.width;
     const h = this.height;
 
@@ -219,20 +251,12 @@ export class Scene {
 
   // ------------------------------------------------------------------ disco
 
-  private drawDiscLayer(palette: Palette): void {
+  private makeDiscState(palette: Palette): DiscState {
     const tt = this.turntable;
-    const cx = tt.discX;
-    const cy = LAYOUT.disc.cy;
-    const r = LAYOUT.disc.r;
-
-    drawDiscShadow(this.ctx, cx, cy, r, palette);
-
-    if (tt.discOut < 0.005 && !tt.track) return;
-
-    drawDisc(this.ctx, {
-      cx,
-      cy,
-      r,
+    return {
+      cx: tt.discX,
+      cy: LAYOUT.disc.cy,
+      r: LAYOUT.disc.r,
       spin: tt.spinAngle,
       texture: tt.texture,
       seed: tt.textureSeed,
@@ -243,7 +267,33 @@ export class Scene {
       rpm: tt.rpm,
       side: 'LADO A',
       opacity: 1,
-    });
+    };
+  }
+
+  private drawDiscLayer(palette: Palette): void {
+    const tt = this.turntable;
+    const cx = tt.discX;
+    const cy = LAYOUT.disc.cy;
+    const r = LAYOUT.disc.r;
+
+    drawDiscShadow(this.ctx, cx, cy, r, palette);
+
+    const state = this.makeDiscState(palette);
+    // Si el disco está completamente oculto dentro de la funda, no lo dibujamos
+    // en pantalla; pero si este fotograma aún no gastó presupuesto pesado y la
+    // pista está lista, precalentamos el sprite antes de que venza REVEAL_DELAY.
+    if (tt.discOut < 0.005) {
+      if (tt.track && !this.heavyBudgetUsed && !hasSpinningDiscCached(state)) {
+        this.heavyBudgetUsed = true;
+        getSpinningDisc(state);
+      }
+      return;
+    }
+
+    if (!hasSpinningDiscCached(state)) {
+      this.heavyBudgetUsed = true;
+    }
+    drawDisc(this.ctx, state);
   }
 
   // ------------------------------------------------------------------ funda
@@ -255,23 +305,37 @@ export class Scene {
     const flip = tt.flip;
     const sx = Math.cos(Math.PI * flip);
 
-    // Sprite frontal.
+    // Sprite frontal (con reutilización de doble buffer para permitir el fundido).
     const frontKey = `${tt.cover?.currentSrc ?? 'none'}|${palette.paper}|${tt.track?.title ?? ''}`;
-    if (frontKey !== this.frontKey || !this.front) {
+    if (!this.front || (frontKey !== this.frontKey && !this.heavyBudgetUsed)) {
+      this.heavyBudgetUsed = true;
       if (this.front && tt.cover !== this.prevCoverRef) {
         this.prevFront = this.front;
         this.coverFadeAt = performance.now();
       }
       this.prevCoverRef = tt.cover;
-      this.front = makeSleeveFront(size, 2, palette, tt.cover, tt.track?.title ?? '', tt.track?.artist ?? '');
+      const targetBuffer = this.prevFront === this.frontBufferA ? this.frontBufferB : this.frontBufferA;
+      const rendered = makeSleeveFront(
+        size,
+        2,
+        palette,
+        tt.cover,
+        tt.track?.title ?? '',
+        tt.track?.artist ?? '',
+        targetBuffer,
+      );
+      if (this.prevFront === this.frontBufferA) {
+        this.frontBufferB = rendered;
+      } else {
+        this.frontBufferA = rendered;
+      }
+      this.front = rendered;
       this.frontKey = frontKey;
     }
 
-    // Sombra proyectada sobre la mesa (y sobre el disco).
-    const shadowKey = palette.shadow;
-    if (!this.sleeveShadow || shadowKey !== this.sleeveShadowKey) {
+    // Sombra proyectada sobre la mesa (independiente de palette.shadow: se crea 1 sola vez).
+    if (!this.sleeveShadow) {
       this.sleeveShadow = makeShadowSprite(size, size, 4, 24, 'rgba(44,32,20,0.42)', 6);
-      this.sleeveShadowKey = shadowKey;
     }
 
     ctx.save();
@@ -318,11 +382,11 @@ export class Scene {
       };
       const backKey = `${data.title}|${data.artist}|${active}|${tt.lyricsStatus}|${tt.rpm}|${data.album}|${tt.phraseIndex}`;
       if (backKey !== this.backKey || !this.back) {
-        this.back = makeSleeveBack(size, 2, palette, data);
+        this.back = makeSleeveBack(size, 1.5, palette, data, this.back);
         this.backKey = backKey;
       }
       ctx.drawImage(this.back, -size / 2, -size / 2, size, size);
-    } else {
+    } else if (this.front) {
       const fade = this.prevFront ? Math.min(1, (performance.now() - this.coverFadeAt) / 650) : 1;
       if (this.prevFront && fade < 1) {
         ctx.drawImage(this.prevFront, -size / 2, -size / 2, size, size);
@@ -383,7 +447,182 @@ export class Scene {
 
   // ------------------------------------------------------------------- brazo
 
+  private ensureArmSprites(): void {
+    if (!this.armRestSprite) {
+      const { canvas, ctx } = makeSurface(80, 96, 2);
+      ctx.translate(40, 32);
+      ctx.fillStyle = 'rgba(40,32,24,0.18)';
+      ctx.beginPath();
+      ctx.ellipse(10, 38, 24, 8, 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#dad2c2';
+      ctx.beginPath();
+      ctx.ellipse(0, 34, 15, 5.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const post = ctx.createLinearGradient(-4, 0, 5, 0);
+      post.addColorStop(0, '#efe9dc');
+      post.addColorStop(0.5, '#b6ada0');
+      post.addColorStop(1, '#6d6558');
+      ctx.fillStyle = post;
+      roundRectPath(ctx, -4, 6, 8, 29, 3);
+      ctx.fill();
+      // Pinza: dos dientes de goma negra que abrazan el tubo.
+      ctx.fillStyle = '#211d19';
+      roundRectPath(ctx, -9, -7, 18, 7, 2.5);
+      ctx.fill();
+      roundRectPath(ctx, -9, -21, 5, 15, 2);
+      ctx.fill();
+      roundRectPath(ctx, 4, -21, 5, 15, 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,250,240,0.16)';
+      ctx.fillRect(-6.5, -6.4, 13, 1.2);
+      this.armRestSprite = canvas;
+    }
+
+    if (!this.armMovingSprite) {
+      const { canvas, ctx } = makeSurface(ARM_SPRITE_W, ARM_SPRITE_H, 2);
+      ctx.translate(ARM_SPRITE_OX, ARM_SPRITE_OY);
+
+      // Contrapeso: cilindro negro roscado en la cola del brazo (ángulo = PI en espacio local).
+      ctx.save();
+      ctx.rotate(Math.PI);
+      const cw = LAYOUT.arm.counterweight;
+      const body = ctx.createLinearGradient(0, -11, 0, 11);
+      body.addColorStop(0, '#544c43');
+      body.addColorStop(0.28, '#2b2620');
+      body.addColorStop(0.6, '#131110');
+      body.addColorStop(0.86, '#241f1a');
+      body.addColorStop(1, '#0b0a09');
+      ctx.fillStyle = body;
+      roundRectPath(ctx, 48, -11, cw - 48, 22, 4);
+      ctx.fill();
+      // Aro de agarre en el extremo.
+      ctx.fillStyle = '#3a342c';
+      roundRectPath(ctx, cw - 9, -11.5, 9, 23, 3);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,250,240,0.22)';
+      ctx.fillRect(52, -9.5, cw - 62, 2.2);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(52, 8, cw - 62, 1.6);
+      // Eje roscado que une contrapeso y base.
+      ctx.fillStyle = 'rgba(20,17,14,0.9)';
+      roundRectPath(ctx, 30, -3, 22, 6, 3);
+      ctx.fill();
+      ctx.restore();
+
+      // Tubo con brillo metálico horizontal desde (0,0) hasta (L,0) con ligera curvatura en Y=+7.
+      const L = LAYOUT.arm.length - 22;
+      const tube = ctx.createLinearGradient(0, 6, 0, -6);
+      tube.addColorStop(0, '#6c665c');
+      tube.addColorStop(0.22, '#f6f1e6');
+      tube.addColorStop(0.48, '#b9b2a4');
+      tube.addColorStop(0.72, '#efe8db');
+      tube.addColorStop(1, '#57514a');
+
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(28,22,16,0.45)';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(L / 2, 7, L, 0);
+      ctx.stroke();
+
+      ctx.strokeStyle = tube;
+      ctx.lineWidth = 5.6;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(L / 2, 7, L, 0);
+      ctx.stroke();
+
+      // Cabezal negro mate (rotado +0.10 rad respecto al eje del brazo).
+      const headOffset = 0.10;
+      ctx.save();
+      ctx.translate(L + Math.cos(headOffset) * 12, Math.sin(headOffset) * 12);
+      ctx.rotate(headOffset);
+      const headGrad = ctx.createLinearGradient(0, -9, 0, 9);
+      headGrad.addColorStop(0, '#3a3733');
+      headGrad.addColorStop(0.45, '#151412');
+      headGrad.addColorStop(1, '#0a0908');
+      ctx.fillStyle = headGrad;
+      roundRectPath(ctx, -16, -8.5, 38, 17, 4.5);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,250,238,0.16)';
+      ctx.lineWidth = 0.8;
+      roundRectPath(ctx, -16, -8.5, 38, 17, 4.5);
+      ctx.stroke();
+      // Pestaña para levantar la aguja.
+      ctx.fillStyle = '#2a2724';
+      roundRectPath(ctx, 12, -12, 9, 5, 2);
+      ctx.fill();
+      // Cápsula y aguja.
+      ctx.fillStyle = '#1b1917';
+      roundRectPath(ctx, 6, -6, 14, 12, 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(240,232,214,0.85)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(20, 4);
+      ctx.lineTo(24, 7);
+      ctx.stroke();
+      ctx.restore();
+
+      // Base: plinto de aluminio cepillado con buje negro y tornillo (orientado al ángulo medio ~2.25 rad).
+      const baseR = LAYOUT.arm.baseR;
+      const refAngle = 2.25;
+      ctx.save();
+      ctx.rotate(-refAngle);
+      ctx.beginPath();
+      ctx.arc(0, 7, baseR, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(30,22,14,0.26)';
+      ctx.fill();
+
+      const baseGrad = ctx.createLinearGradient(-baseR, -baseR, baseR, baseR);
+      baseGrad.addColorStop(0, '#f0ebdf');
+      baseGrad.addColorStop(0.3, '#b3ab9c');
+      baseGrad.addColorStop(0.62, '#6f675b');
+      baseGrad.addColorStop(1, '#332e27');
+      ctx.beginPath();
+      ctx.arc(0, 0, baseR, 0, Math.PI * 2);
+      ctx.fillStyle = baseGrad;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(24,19,14,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Buje central negro donde gira el brazo.
+      ctx.beginPath();
+      ctx.arc(0, 0, baseR * 0.52, 0, Math.PI * 2);
+      ctx.fillStyle = '#211d19';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(-baseR * 0.16, -baseR * 0.2, baseR * 0.14, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(240,232,214,0.5)';
+      ctx.fill();
+      // Tornillo de fijación.
+      ctx.beginPath();
+      ctx.arc(baseR * 0.6, baseR * 0.42, 2.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(28,23,18,0.55)';
+      ctx.fill();
+      ctx.restore();
+
+      this.armMovingSprite = canvas;
+    }
+
+    if (!this.needleShadowSprite) {
+      const { canvas, ctx } = makeSurface(24, 24, 2);
+      const g = ctx.createRadialGradient(12, 12, 1, 12, 12, 11);
+      g.addColorStop(0, 'rgba(20,14,8,0.45)');
+      g.addColorStop(1, 'rgba(20,14,8,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(12, 12, 11, 0, Math.PI * 2);
+      ctx.fill();
+      this.needleShadowSprite = canvas;
+    }
+  }
+
   private drawArm(): void {
+    this.ensureArmSprites();
     const tt = this.turntable;
     const ctx = this.ctx;
     const px = LAYOUT.arm.px;
@@ -393,38 +632,11 @@ export class Scene {
     const tip = needlePoint(angle, LAYOUT.arm.length - 22);
     const needle = needlePoint(angle);
 
-    // Soporte de descanso: poste de aluminio con pinza de goma, justo donde
-    // aparca la aguja. Sin él el brazo parece flotar sobre la mesa. Se dibuja
-    // en el espacio de la pantalla (sin rotar): el poste baja, no sigue al tubo.
+    // Soporte de descanso estático pre-renderizado.
     const restTip = needlePoint(REST_ANGLE, LAYOUT.arm.length - 14);
-    ctx.save();
-    ctx.translate(restTip.x, restTip.y);
-    ctx.fillStyle = 'rgba(40,32,24,0.18)';
-    ctx.beginPath();
-    ctx.ellipse(10, 38, 24, 8, 0.15, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#dad2c2';
-    ctx.beginPath();
-    ctx.ellipse(0, 34, 15, 5.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    const post = ctx.createLinearGradient(-4, 0, 5, 0);
-    post.addColorStop(0, '#efe9dc');
-    post.addColorStop(0.5, '#b6ada0');
-    post.addColorStop(1, '#6d6558');
-    ctx.fillStyle = post;
-    roundRectPath(ctx, -4, 6, 8, 29, 3);
-    ctx.fill();
-    // Pinza: dos dientes de goma negra que abrazan el tubo.
-    ctx.fillStyle = '#211d19';
-    roundRectPath(ctx, -9, -7, 18, 7, 2.5);
-    ctx.fill();
-    roundRectPath(ctx, -9, -21, 5, 15, 2);
-    ctx.fill();
-    roundRectPath(ctx, 4, -21, 5, 15, 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,250,240,0.16)';
-    ctx.fillRect(-6.5, -6.4, 13, 1.2);
-    ctx.restore();
+    if (this.armRestSprite) {
+      ctx.drawImage(this.armRestSprite, restTip.x - 40, restTip.y - 32, 80, 96);
+    }
 
     // Sombra del brazo sobre el disco (sin clip circular de pantalla completa).
     if (lift < 0.5 && tt.discOut > 0.65) {
@@ -448,144 +660,20 @@ export class Scene {
       ctx.restore();
     }
 
-    ctx.save();
-    ctx.translate(0, -lift * 7);
-
-    // Contrapeso: cilindro negro roscado en la cola del brazo.
-    ctx.save();
-    ctx.translate(px, py);
-    ctx.rotate(angle + Math.PI);
-    const cw = LAYOUT.arm.counterweight;
-    const body = ctx.createLinearGradient(0, -11, 0, 11);
-    body.addColorStop(0, '#544c43');
-    body.addColorStop(0.28, '#2b2620');
-    body.addColorStop(0.6, '#131110');
-    body.addColorStop(0.86, '#241f1a');
-    body.addColorStop(1, '#0b0a09');
-    ctx.fillStyle = body;
-    roundRectPath(ctx, 48, -11, cw - 48, 22, 4);
-    ctx.fill();
-    // Aro de agarre en el extremo.
-    ctx.fillStyle = '#3a342c';
-    roundRectPath(ctx, cw - 9, -11.5, 9, 23, 3);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,250,240,0.22)';
-    ctx.fillRect(52, -9.5, cw - 62, 2.2);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(52, 8, cw - 62, 1.6);
-    // Eje roscado que une contrapeso y base.
-    ctx.fillStyle = 'rgba(20,17,14,0.9)';
-    roundRectPath(ctx, 30, -3, 22, 6, 3);
-    ctx.fill();
-    ctx.restore();
-
-    // Tubo con brillo metálico.
-    const midX = (px + tip.x) / 2 - Math.sin(angle) * 7;
-    const midY = (py + tip.y) / 2 + Math.cos(angle) * 7;
-    const nx = Math.cos(angle + Math.PI / 2);
-    const ny = Math.sin(angle + Math.PI / 2);
-
-    const tube = ctx.createLinearGradient(px + nx * 6, py + ny * 6, px - nx * 6, py - ny * 6);
-    tube.addColorStop(0, '#6c665c');
-    tube.addColorStop(0.22, '#f6f1e6');
-    tube.addColorStop(0.48, '#b9b2a4');
-    tube.addColorStop(0.72, '#efe8db');
-    tube.addColorStop(1, '#57514a');
-
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = 'rgba(28,22,16,0.45)';
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.quadraticCurveTo(midX, midY, tip.x, tip.y);
-    ctx.stroke();
-
-    ctx.strokeStyle = tube;
-    ctx.lineWidth = 5.6;
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.quadraticCurveTo(midX, midY, tip.x, tip.y);
-    ctx.stroke();
-
-    // Cabezal negro mate.
-    const headAngle = angle + 0.10;
-    ctx.save();
-    ctx.translate(tip.x + Math.cos(headAngle) * 12, tip.y + Math.sin(headAngle) * 12);
-    ctx.rotate(headAngle);
-    const headGrad = ctx.createLinearGradient(0, -9, 0, 9);
-    headGrad.addColorStop(0, '#3a3733');
-    headGrad.addColorStop(0.45, '#151412');
-    headGrad.addColorStop(1, '#0a0908');
-    ctx.fillStyle = headGrad;
-    roundRectPath(ctx, -16, -8.5, 38, 17, 4.5);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,250,238,0.16)';
-    ctx.lineWidth = 0.8;
-    roundRectPath(ctx, -16, -8.5, 38, 17, 4.5);
-    ctx.stroke();
-    // Pestaña para levantar la aguja.
-    ctx.fillStyle = '#2a2724';
-    roundRectPath(ctx, 12, -12, 9, 5, 2);
-    ctx.fill();
-    // Cápsula y aguja.
-    ctx.fillStyle = '#1b1917';
-    roundRectPath(ctx, 6, -6, 14, 12, 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(240,232,214,0.85)';
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.moveTo(20, 4);
-    ctx.lineTo(24, 7);
-    ctx.stroke();
-    ctx.restore();
-
-    // Base: plinto de aluminio cepillado con buje negro y tornillo.
-    const baseR = LAYOUT.arm.baseR;
-    ctx.beginPath();
-    ctx.arc(px, py + 7, baseR, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(30,22,14,0.26)';
-    ctx.fill();
-
-    const baseGrad = ctx.createLinearGradient(px - baseR, py - baseR, px + baseR, py + baseR);
-    baseGrad.addColorStop(0, '#f0ebdf');
-    baseGrad.addColorStop(0.3, '#b3ab9c');
-    baseGrad.addColorStop(0.62, '#6f675b');
-    baseGrad.addColorStop(1, '#332e27');
-    ctx.beginPath();
-    ctx.arc(px, py, baseR, 0, Math.PI * 2);
-    ctx.fillStyle = baseGrad;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(24,19,14,0.35)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Buje central negro donde gira el brazo.
-    ctx.beginPath();
-    ctx.arc(px, py, baseR * 0.52, 0, Math.PI * 2);
-    ctx.fillStyle = '#211d19';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(px - baseR * 0.16, py - baseR * 0.2, baseR * 0.14, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(240,232,214,0.5)';
-    ctx.fill();
-    // Tornillo de fijación.
-    ctx.beginPath();
-    ctx.arc(px + baseR * 0.6, py + baseR * 0.42, 2.6, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(28,23,18,0.55)';
-    ctx.fill();
-    ctx.restore();
+    // Brazo móvil rotado con un único drawImage.
+    if (this.armMovingSprite) {
+      ctx.save();
+      ctx.translate(px, py - lift * 7);
+      ctx.rotate(angle);
+      ctx.drawImage(this.armMovingSprite, -ARM_SPRITE_OX, -ARM_SPRITE_OY, ARM_SPRITE_W, ARM_SPRITE_H);
+      ctx.restore();
+    }
 
     // Sombra de la aguja sobre el surco.
-    if (lift < 0.25 && tt.discOut > 0.8) {
+    if (lift < 0.25 && tt.discOut > 0.8 && this.needleShadowSprite) {
       ctx.save();
       ctx.globalAlpha = 1 - lift * 4;
-      const g = ctx.createRadialGradient(needle.x + 4, needle.y + 6, 1, needle.x + 4, needle.y + 6, 11);
-      g.addColorStop(0, 'rgba(20,14,8,0.45)');
-      g.addColorStop(1, 'rgba(20,14,8,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(needle.x + 4, needle.y + 6, 11, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.drawImage(this.needleShadowSprite, needle.x + 4 - 12, needle.y + 6 - 12, 24, 24);
       ctx.restore();
     }
   }
@@ -607,7 +695,7 @@ export class Scene {
     const key = `${time}|${date}|${palette.paper}|${palette.labelInk}|${size}|${tt.phraseIndex}`;
 
     if (key !== this.clockBandKey || !this.clockBand) {
-      const band = makeSurface(size, height, 2);
+      const band = makeSurface(size, height, 2, this.clockBand);
       band.ctx.translate(0, -top);
       drawSleeveClock(band.ctx, size, palette, 1, time, date, tt.phraseIndex);
       this.clockBand = band.canvas;
@@ -688,7 +776,7 @@ export class Scene {
     const w = CLOCK_CARD.w;
     const h = CLOCK_CARD.h;
     const pad = CLOCK_PAD;
-    const { canvas: surface, ctx } = makeSurface(w + pad * 2, h + pad * 2, this.dpr);
+    const { canvas: surface, ctx } = makeSurface(w + pad * 2, h + pad * 2, this.dpr, this.clockCard);
 
     ctx.drawImage(makeShadowSprite(w, h, 4, 12, 'rgba(58,40,24,0.26)', 1.5), pad + 2, pad + 5);
 

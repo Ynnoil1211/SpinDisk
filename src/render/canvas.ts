@@ -5,12 +5,21 @@ export interface Surface {
   ctx: CanvasRenderingContext2D;
 }
 
-export const makeSurface = (width: number, height: number, dpr = 1): Surface => {
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(width * dpr));
-  canvas.height = Math.max(1, Math.round(height * dpr));
+export const makeSurface = (
+  width: number,
+  height: number,
+  dpr = 1,
+  reuse?: HTMLCanvasElement | null,
+): Surface => {
+  const canvas = reuse ?? document.createElement('canvas');
+  const w = Math.max(1, Math.round(width * dpr));
+  const h = Math.max(1, Math.round(height * dpr));
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D no disponible');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, w, h);
   ctx.scale(dpr, dpr);
   return { canvas, ctx };
 };
@@ -51,6 +60,8 @@ export const drawCoverFit = (
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 };
 
+const shadowSpriteCache = new Map<string, HTMLCanvasElement>();
+
 /** Sombra suave pre-renderizada: se dibuja como sprite, no cuesta blur por frame. */
 export const makeShadowSprite = (
   w: number,
@@ -60,6 +71,10 @@ export const makeShadowSprite = (
   color: string,
   spread = 0,
 ): HTMLCanvasElement => {
+  const key = `${w}|${h}|${radius}|${blur}|${color}|${spread}`;
+  const cached = shadowSpriteCache.get(key);
+  if (cached) return cached;
+
   const pad = Math.ceil(blur * 2 + spread);
   const surface = makeSurface(w + pad * 2, h + pad * 2);
   const { ctx } = surface;
@@ -67,6 +82,7 @@ export const makeShadowSprite = (
   ctx.fillStyle = color;
   roundRectPath(ctx, pad - spread, pad - spread, w + spread * 2, h + spread * 2, radius + spread);
   ctx.fill();
+  shadowSpriteCache.set(key, surface.canvas);
   return surface.canvas;
 };
 
@@ -222,27 +238,21 @@ export const cssToRgb = (css: string): Rgb => {
   return { r: 200, g: 190, b: 170 };
 };
 
-/**
- * Textura de resina marmoleada translúcida, generada por dominio deformado.
- * Se cachea: sólo se recalcula al cambiar portada o textura.
- */
-export const makeMarbleTexture = (
-  colors: MarbleColors,
-  size: number,
-  seed: number,
-  kind: 'marble' | 'black' | 'cream' | 'glass',
-): HTMLCanvasElement => {
-  const surface = makeSurface(size, size);
-  const { ctx } = surface;
-  const image = ctx.createImageData(size, size);
-  const data = image.data;
+interface MarbleField {
+  ttIdx: Uint8Array;
+  delta: Int8Array;
+  mask: Uint8Array;
+}
 
-  const base = cssToRgb(colors.base);
-  const light = cssToRgb(colors.light);
-  const dark = cssToRgb(colors.dark);
-  const vein = cssToRgb(colors.vein);
+const fieldCache = new Map<string, MarbleField>();
+const MAX_FIELDS = 6;
+
+const getMarbleField = (size: number, seed: number, kind: 'marble' | 'black' | 'cream' | 'glass'): MarbleField => {
+  const key = `${size}|${seed}|${kind}`;
+  const cached = fieldCache.get(key);
+  if (cached) return cached;
+
   const noise = makeNoise2D(seed);
-
   const fbm = (x: number, y: number): number => {
     let sum = 0;
     let amp = 0.55;
@@ -255,86 +265,76 @@ export const makeMarbleTexture = (
     return sum;
   };
 
+  const count = size * size;
+  const ttIdx = new Uint8Array(count);
+  const delta = new Int8Array(count);
+  const mask = new Uint8Array(count);
+
   const half = size / 2;
   const invHalf = 1 / half;
+  const contrast = kind === 'glass' ? 0.55 : 1;
+
   for (let py = 0; py < size; py++) {
     const ny = (py - half) * invHalf;
     const nySq = ny * ny;
     const v = ny * 2.2 + 4.7;
+    const rowOffset = py * size;
     for (let px = 0; px < size; px++) {
       const nx = (px - half) * invHalf;
       const rSq = nx * nx + nySq;
       if (rSq > 1.04) continue;
+      const idx = rowOffset + px;
+      mask[idx] = 1;
       const r = Math.sqrt(rSq);
-      const u = nx * 2.2 + 9.3;
-
-      let r0: number;
-      let g0: number;
-      let b0: number;
 
       if (kind === 'black') {
         const sheen = Math.max(0, 1 - Math.abs(r - 0.62) * 9) * 0.5;
         const fine = noise(px / 12, py / 12) * 0.10;
         const value = 12 + sheen * 46 + fine * 60;
-        r0 = value;
-        g0 = value * 0.99;
-        b0 = value * 0.97;
+        ttIdx[idx] = Math.min(255, Math.max(0, Math.round(value)));
       } else if (kind === 'cream') {
         const mottle = fbm(px / 26, py / 26);
         const fleck = noise(px / 4, py / 4);
         const t = mottle * 0.7 + fleck * 0.3;
-        r0 = 232 + (t - 0.5) * 34;
-        g0 = 220 + (t - 0.5) * 40;
-        b0 = 196 + (t - 0.5) * 46;
+        ttIdx[idx] = Math.min(255, Math.max(0, Math.round(t * 255)));
       } else {
+        const u = nx * 2.2 + 9.3;
         const warpA = fbm(u * 0.9 + 3.1, v * 0.9 - 1.7);
         const warpB = fbm(u * 0.9 - 2.4, v * 0.9 + 6.2);
         const n = fbm(u + warpA * 2.4, v + warpB * 2.4);
         const band = Math.sin(n * 9.5 + Math.sin(n * 2.6) * 2.1 + r * 1.4);
         const t = Math.min(1, Math.max(0, (band + 1) * 0.5));
-        const contrast = kind === 'glass' ? 0.55 : 1;
         const tt = 0.5 + (t - 0.5) * contrast;
-
-        let cr: number;
-        let cg: number;
-        let cb: number;
-        if (tt < 0.42) {
-          const k = tt / 0.42;
-          cr = dark.r + (base.r - dark.r) * k;
-          cg = dark.g + (base.g - dark.g) * k;
-          cb = dark.b + (base.b - dark.b) * k;
-        } else if (tt < 0.78) {
-          const k = (tt - 0.42) / 0.36;
-          cr = base.r + (vein.r - base.r) * k;
-          cg = base.g + (vein.g - base.g) * k;
-          cb = base.b + (vein.b - base.b) * k;
-        } else {
-          const k = (tt - 0.78) / 0.22;
-          cr = vein.r + (light.r - vein.r) * k;
-          cg = vein.g + (light.g - vein.g) * k;
-          cb = vein.b + (light.b - vein.b) * k;
-        }
-
+        ttIdx[idx] = Math.min(255, Math.max(0, Math.round(tt * 255)));
         const speckle = (noise(px / 2.6, py / 2.6) - 0.5) * 9;
         const rim = Math.max(0, 1 - Math.abs(r - 0.995) * 40) * 12;
-        r0 = cr + speckle + rim;
-        g0 = cg + speckle + rim;
-        b0 = cb + speckle + rim;
+        delta[idx] = Math.round(speckle + rim);
       }
-
-      const index = (py * size + px) * 4;
-      data[index] = r0;
-      data[index + 1] = g0;
-      data[index + 2] = b0;
-      data[index + 3] = 255;
     }
   }
-  ctx.putImageData(image, 0, 0);
 
-  // Micro-surcos: anillos concéntricos muy tenues.
+  if (fieldCache.size >= MAX_FIELDS) {
+    const oldest = fieldCache.keys().next().value;
+    if (oldest) fieldCache.delete(oldest);
+  }
+  const field = { ttIdx, delta, mask };
+  fieldCache.set(key, field);
+  return field;
+};
+
+const grooveOverlayCache = new Map<string, HTMLCanvasElement>();
+
+const getMarbleGrooves = (size: number, kind: 'marble' | 'black' | 'cream' | 'glass'): HTMLCanvasElement => {
+  const rings = kind === 'black' ? 120 : 88;
+  const key = `${size}|${rings}`;
+  const cached = grooveOverlayCache.get(key);
+  if (cached) return cached;
+
+  const surface = makeSurface(size, size);
+  const { ctx } = surface;
+  const half = size / 2;
   ctx.save();
   ctx.translate(half, half);
-  const rings = kind === 'black' ? 120 : 88;
   for (let i = 0; i < rings; i++) {
     const rr = (i / rings) * half * 0.97;
     ctx.beginPath();
@@ -344,6 +344,106 @@ export const makeMarbleTexture = (
     ctx.stroke();
   }
   ctx.restore();
+  grooveOverlayCache.set(key, surface.canvas);
+  return surface.canvas;
+};
+
+/**
+ * Textura de resina marmoleada translúcida, generada por dominio deformado.
+ * Se cachea el mapa escalar de ruido y se colorea mediante LUT de 256 entradas,
+ * de modo que cambiar de paleta o recolorear toma ~1 ms en lugar de ~200 ms.
+ */
+export const makeMarbleTexture = (
+  colors: MarbleColors,
+  size: number,
+  seed: number,
+  kind: 'marble' | 'black' | 'cream' | 'glass',
+  reuse?: HTMLCanvasElement | null,
+): HTMLCanvasElement => {
+  const surface = makeSurface(size, size, 1, reuse);
+  const { ctx } = surface;
+  const image = ctx.createImageData(size, size);
+  const data = image.data;
+
+  // Para evitar evaluar fbm en cada nueva semilla durante saltos de pista,
+  // mapeamos la semilla a un conjunto discreto de variantes de grano orgánico.
+  const fieldSeed = (seed % 4) + 1;
+  const field = getMarbleField(size, fieldSeed, kind);
+  const { ttIdx, delta, mask } = field;
+  const count = size * size;
+
+  if (kind === 'black') {
+    for (let i = 0; i < count; i++) {
+      if (!mask[i]) continue;
+      const value = ttIdx[i];
+      const idx = i * 4;
+      data[idx] = value;
+      data[idx + 1] = Math.round(value * 0.99);
+      data[idx + 2] = Math.round(value * 0.97);
+      data[idx + 3] = 255;
+    }
+  } else if (kind === 'cream') {
+    for (let i = 0; i < count; i++) {
+      if (!mask[i]) continue;
+      const t = ttIdx[i] / 255 - 0.5;
+      const idx = i * 4;
+      data[idx] = 232 + t * 34;
+      data[idx + 1] = 220 + t * 40;
+      data[idx + 2] = 196 + t * 46;
+      data[idx + 3] = 255;
+    }
+  } else {
+    const base = cssToRgb(colors.base);
+    const light = cssToRgb(colors.light);
+    const dark = cssToRgb(colors.dark);
+    const vein = cssToRgb(colors.vein);
+
+    const lutR = new Uint8Array(256);
+    const lutG = new Uint8Array(256);
+    const lutB = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+      const tt = i / 255;
+      let cr: number;
+      let cg: number;
+      let cb: number;
+      if (tt < 0.42) {
+        const k = tt / 0.42;
+        cr = dark.r + (base.r - dark.r) * k;
+        cg = dark.g + (base.g - dark.g) * k;
+        cb = dark.b + (base.b - dark.b) * k;
+      } else if (tt < 0.78) {
+        const k = (tt - 0.42) / 0.36;
+        cr = base.r + (vein.r - base.r) * k;
+        cg = base.g + (vein.g - base.g) * k;
+        cb = base.b + (vein.b - base.b) * k;
+      } else {
+        const k = (tt - 0.78) / 0.22;
+        cr = vein.r + (light.r - vein.r) * k;
+        cg = vein.g + (light.g - vein.g) * k;
+        cb = vein.b + (light.b - vein.b) * k;
+      }
+      lutR[i] = Math.min(255, Math.max(0, Math.round(cr)));
+      lutG[i] = Math.min(255, Math.max(0, Math.round(cg)));
+      lutB[i] = Math.min(255, Math.max(0, Math.round(cb)));
+    }
+
+    for (let i = 0; i < count; i++) {
+      if (!mask[i]) continue;
+      const t = ttIdx[i];
+      const d = delta[i];
+      const idx = i * 4;
+      const r0 = lutR[t] + d;
+      const g0 = lutG[t] + d;
+      const b0 = lutB[t] + d;
+      data[idx] = r0 < 0 ? 0 : r0 > 255 ? 255 : r0;
+      data[idx + 1] = g0 < 0 ? 0 : g0 > 255 ? 255 : g0;
+      data[idx + 2] = b0 < 0 ? 0 : b0 > 255 ? 255 : b0;
+      data[idx + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+  ctx.drawImage(getMarbleGrooves(size, kind), 0, 0);
 
   return surface.canvas;
 };

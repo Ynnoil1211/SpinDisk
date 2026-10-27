@@ -17,6 +17,20 @@ const getGrain = (): HTMLCanvasElement => {
   return grainTile;
 };
 
+let measureCtx: CanvasRenderingContext2D | null = null;
+export const prewrapLyrics = (lyrics: Lyrics, size: number): void => {
+  if (lyrics.wrapped || lyrics.lines.length === 0) return;
+  if (!measureCtx) {
+    measureCtx = makeSurface(4, 4).ctx;
+  }
+  const pad = size * 0.105;
+  measureCtx.font = `${size * 0.0285}px ${SERIF}`;
+  lyrics.wrapped = lyrics.lines.map((l) => {
+    const parts = wrapText(measureCtx!, l.text, size - pad * 2.3, 99);
+    return parts.length > 0 ? parts : [''];
+  });
+};
+
 const drawPaper = (
   ctx: CanvasRenderingContext2D,
   size: number,
@@ -62,20 +76,19 @@ export const makeSleeveFront = (
   cover: HTMLImageElement | null,
   title: string,
   artist: string,
+  reuse?: HTMLCanvasElement | null,
 ): HTMLCanvasElement => {
-  const surface = makeSurface(size, size, dpr);
+  const surface = makeSurface(size, size, dpr, reuse);
   const { ctx } = surface;
 
   drawPaper(ctx, size, palette.paper);
   if (cover) {
     drawCoverFit(ctx, cover, 0, 0, size, size);
-    // Impresión mate: se baja un punto la saturación y se calienta el papel.
-    ctx.save();
-    ctx.globalCompositeOperation = 'saturation';
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    // Impresión mate: velo cálido en source-over para evitar el readback de
+    // software del blend mode 'saturation' en Skia/WebView (< 0,5 ms).
+    ctx.fillStyle = 'rgba(42,36,28,0.10)';
     ctx.fillRect(0, 0, size, size);
-    ctx.restore();
-    ctx.fillStyle = 'rgba(244,234,214,0.07)';
+    ctx.fillStyle = 'rgba(244,234,214,0.09)';
     ctx.fillRect(0, 0, size, size);
   } else {
     // Funda vacía: cartón con la marca en relieve, sin carátula todavía.
@@ -245,20 +258,13 @@ export const makeSleeveBack = (
   dpr: number,
   palette: Palette,
   data: SleeveBackData,
+  reuse?: HTMLCanvasElement | null,
 ): HTMLCanvasElement => {
-  const surface = makeSurface(size, size, dpr);
+  const surface = makeSurface(size, size, dpr, reuse);
   const { ctx } = surface;
   const pad = size * 0.105;
 
-  drawPaper(ctx, size, hsl(38, 0.24, 0.90));
-  ctx.save();
-  ctx.globalAlpha = 0.4;
-  const pattern = ctx.createPattern(getGrain(), 'repeat');
-  if (pattern) {
-    ctx.fillStyle = pattern;
-    ctx.fillRect(0, 0, size, size);
-  }
-  ctx.restore();
+  drawPaper(ctx, size, hsl(38, 0.24, 0.90), 1.4);
 
   // Cabecera impresa.
   ctx.fillStyle = hsl(30, 0.18, 0.38);
@@ -299,7 +305,8 @@ export const makeSleeveBack = (
 
   const hasLines = data.lyrics && data.lyrics.lines.length > 0;
   if (hasLines) {
-    const lines = data.lyrics!.lines;
+    const lyricsObj = data.lyrics!;
+    const lines = lyricsObj.lines;
     const active = data.activeIndex;
     const accentInk = hsl(14, 0.58, 0.36);
     ctx.font = `${size * 0.0285}px ${SERIF}`;
@@ -308,10 +315,13 @@ export const makeSleeveBack = (
     // ocupa su altura real, de modo que nunca pisa al siguiente.
     const rowH = lineHeight * 0.92;
     const gap = lineHeight * 0.22;
-    const wrapped = lines.map((l) => {
-      const parts = wrapText(ctx, l.text, size - pad * 2.3, 99);
-      return parts.length > 0 ? parts : [''];
-    });
+    if (!lyricsObj.wrapped) {
+      lyricsObj.wrapped = lines.map((l) => {
+        const parts = wrapText(ctx, l.text, size - pad * 2.3, 99);
+        return parts.length > 0 ? parts : [''];
+      });
+    }
+    const wrapped = lyricsObj.wrapped;
     const heightOf = (i: number): number => Math.max(1, wrapped[i].length) * rowH + gap;
     const avail = bodyBottom - bodyTop;
     const centerY = bodyTop + avail / 2;

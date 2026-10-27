@@ -8,7 +8,7 @@
 import type { PlayerBridge, TrackSnapshot, Preferences, DiscTexture } from '../core/types.js';
 import { Foley } from '../audio/foley.js';
 import type { Lyrics } from '../bridge/lyrics.js';
-import { activeLineIndex, fetchLyrics } from '../bridge/lyrics.js';
+import { activeLineIndex, fetchLyricsWithStatus } from '../bridge/lyrics.js';
 import { paletteFromImage, defaultPalette, type Palette } from '../theme/palette.js';
 import { approach, clamp, easeOutCubic, hashString } from '../util/math.js';
 import {
@@ -19,7 +19,7 @@ import {
   armAngleForProgress,
   progressForArmAngle,
 } from './layout.js';
-import { SLEEVE_PHRASES } from './sleeve.js';
+import { prewrapLyrics, SLEEVE_PHRASES } from './sleeve.js';
 
 export type LyricsStatus = 'idle' | 'loading' | 'ready' | 'missing';
 
@@ -59,6 +59,7 @@ export class Turntable {
   coverReady = false;
   lyrics: Lyrics | null = null;
   lyricsStatus: LyricsStatus = 'idle';
+  private lyricsNetworkFailed = false;
   textureSeed = 1;
   phraseIndex = Math.floor(Math.random() * SLEEVE_PHRASES.length);
 
@@ -251,6 +252,7 @@ export class Turntable {
         this.revealAt = now + REVEAL_DELAY;
         this.lyrics = null;
         this.lyricsStatus = 'idle';
+        this.lyricsNetworkFailed = false;
         this.onTrackVisual?.('track');
         this.notify();
       }
@@ -259,6 +261,9 @@ export class Turntable {
 
     const key = `${snapshot.title}|${snapshot.artist}|${snapshot.duration}`;
     const isNew = key !== this.lastTrackKey;
+    const prevCanSeek = this.canSeek;
+    this.canSeek = snapshot.canSeek;
+
     if (isNew) {
       this.lastTrackKey = key;
       this.track = snapshot;
@@ -274,15 +279,27 @@ export class Turntable {
       this.track = snapshot;
       if (snapshot.duration > 0) this.duration = snapshot.duration;
       // La portada puede llegar después del título: recarga si la URL cambió.
-      if (snapshot.coverUrl !== this.lastCoverUrl) this.loadCover(snapshot.coverUrl);
+      const coverChanged = snapshot.coverUrl !== this.lastCoverUrl;
+      if (coverChanged) this.loadCover(snapshot.coverUrl);
       const drift = Math.abs(snapshot.currentTime - this.progress);
       // Saltos reales (seek desde la app de origen) o pausa: se sincroniza duro.
       if (!snapshot.isPlaying || drift > 0.9 || !this.playing) {
         this.progress = clamp(snapshot.currentTime, 0, Math.max(0, snapshot.duration));
       }
+      // Si la pista, isPlaying, canSeek y coverUrl no cambiaron y la deriva es normal,
+      // salimos silenciosamente sin disparar notificaciones ni invalidaciones de UI.
+      if (
+        snapshot.isPlaying === this.playing &&
+        snapshot.canSeek === prevCanSeek &&
+        !coverChanged &&
+        drift <= 0.9
+      ) {
+        return;
+      }
+      if (snapshot.canSeek !== prevCanSeek) {
+        this.notify();
+      }
     }
-
-    this.canSeek = snapshot.canSeek;
 
     if (snapshot.isPlaying !== this.playing) {
       // Si el usuario acaba de despertar o despausar desde el plato, el servicio
@@ -346,12 +363,17 @@ export class Turntable {
     const token = ++this.lyricsToken;
     this.lyrics = null;
     this.lyricsStatus = 'loading';
-    void fetchLyrics(snapshot.artist, snapshot.title, snapshot.duration)
-      .catch(() => null)
-      .then((lyrics) => {
+    this.lyricsNetworkFailed = false;
+    void fetchLyricsWithStatus(snapshot.artist, snapshot.title, snapshot.duration)
+      .catch(() => ({ lyrics: null, networkError: true }))
+      .then((res) => {
         if (token !== this.lyricsToken) return;
-        this.lyrics = lyrics;
-        this.lyricsStatus = lyrics ? 'ready' : 'missing';
+        if (res.lyrics) {
+          prewrapLyrics(res.lyrics, LAYOUT.sleeve.size);
+        }
+        this.lyrics = res.lyrics;
+        this.lyricsStatus = res.lyrics ? 'ready' : 'missing';
+        this.lyricsNetworkFailed = res.networkError;
         this.notify();
       });
   }
@@ -496,6 +518,11 @@ export class Turntable {
       this.flipTarget = this.flipTarget > 0.5 ? 0 : 1;
       this.flipFrom = this.flip;
       this.flipAt = performance.now();
+      // Si los intentos iniciales de letra fallaron por falta de internet y el
+      // usuario gira la funda hacia el reverso, reintentamos en este instante.
+      if (this.flipTarget === 1 && this.track && this.lyricsNetworkFailed && this.lyricsStatus === 'missing') {
+        this.loadLyrics(this.track);
+      }
       this.onChange?.();
       return true;
     }
@@ -544,7 +571,8 @@ export class Turntable {
       // tiene la Y hacia abajo), que es justo hacia donde empuja el dedo.
       this.spinAngle = (this.spinAngle + delta * (this.canSeek ? 1 : 0.25)) % (Math.PI * 2);
       this.scrubAngle = angle;
-      this.onChange?.();
+      // No invocamos this.onChange?.() en cada píxel del arrastre (60-120 Hz):
+      // pointermove en main.ts ya llama a kick() y el intervalo de 120 ms sincroniza el panel si está abierto.
     }
   }
 

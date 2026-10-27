@@ -66,6 +66,11 @@ export class ConsolePanel {
   private badge: HTMLElement;
   private foley: HTMLInputElement;
   private inner: HTMLElement | null = null;
+  private swatchButtons: HTMLButtonElement[];
+  private rpmButtons: HTMLButtonElement[];
+  private clockButtons: HTMLButtonElement[];
+  private lastBodyPlaying: boolean | null = null;
+  private lastBodySleeping: boolean | null = null;
   private isPanning = false;
   private panStartX = 0;
   private panStartScroll = 0;
@@ -95,6 +100,10 @@ export class ConsolePanel {
     this.badge = q('source-badge');
     this.foley = q<HTMLInputElement>('foley');
     this.inner = this.root.querySelector<HTMLElement>('.console__inner');
+
+    this.swatchButtons = Array.from(this.root.querySelectorAll<HTMLButtonElement>('.swatch'));
+    this.rpmButtons = Array.from(this.root.querySelectorAll<HTMLButtonElement>('#rpm-switch button'));
+    this.clockButtons = Array.from(this.root.querySelectorAll<HTMLButtonElement>('#clock-switch button'));
 
     this.bind();
     this.refresh();
@@ -153,7 +162,7 @@ export class ConsolePanel {
       if (this.dragging) this.dragging = false;
     });
 
-    this.root.querySelectorAll<HTMLButtonElement>('.swatch').forEach((button) => {
+    this.swatchButtons.forEach((button) => {
       button.addEventListener('click', () => {
         const texture = button.dataset.texture;
         if (!texture) return;
@@ -163,7 +172,7 @@ export class ConsolePanel {
       });
     });
 
-    this.root.querySelectorAll<HTMLButtonElement>('#rpm-switch button').forEach((button) => {
+    this.rpmButtons.forEach((button) => {
       button.addEventListener('click', () => {
         const rpm = button.dataset.rpm === '45' ? 45 : 33;
         this.prefs.rpm = rpm;
@@ -172,7 +181,7 @@ export class ConsolePanel {
       });
     });
 
-    this.root.querySelectorAll<HTMLButtonElement>('#clock-switch button').forEach((button) => {
+    this.clockButtons.forEach((button) => {
       button.addEventListener('click', () => {
         const on = button.dataset.clock === 'on';
         this.prefs.clockWhilePlaying = on;
@@ -393,13 +402,27 @@ export class ConsolePanel {
     return duration > 0 ? clamp(this.turntable.progress / duration, 0, 1) : 0;
   }
 
+  /** Actualiza únicamente las clases globales de document.body si cambiaron. */
+  syncBodyClasses(): void {
+    const tt = this.turntable;
+    const playing = tt.playing;
+    const sleeping = tt.clock > 0.6;
+    if (playing !== this.lastBodyPlaying) {
+      this.lastBodyPlaying = playing;
+      document.body.classList.toggle('is-playing', playing);
+    }
+    if (sleeping !== this.lastBodySleeping) {
+      this.lastBodySleeping = sleeping;
+      document.body.classList.toggle('is-sleeping', sleeping);
+    }
+  }
+
   refresh(): void {
     const tt = this.turntable;
     const duration = tt.duration > 0 ? tt.duration : 0;
     const ratio = this.ratio();
 
-    document.body.classList.toggle('is-playing', tt.playing);
-    document.body.classList.toggle('is-sleeping', tt.clock > 0.6);
+    this.syncBodyClasses();
 
     if (!this.dragging) this.paint(ratio);
     this.nowEl.textContent = formatTime(tt.progress);
@@ -429,16 +452,19 @@ export class ConsolePanel {
     }
     this.badge.style.color = SOURCE_TINT[source];
 
-    this.root.querySelectorAll<HTMLButtonElement>('.swatch').forEach((button) => {
+    for (let i = 0; i < this.swatchButtons.length; i++) {
+      const button = this.swatchButtons[i];
       button.classList.toggle('is-active', button.dataset.texture === this.prefs.discTexture);
-    });
-    this.root.querySelectorAll<HTMLButtonElement>('#rpm-switch button').forEach((button) => {
+    }
+    for (let i = 0; i < this.rpmButtons.length; i++) {
+      const button = this.rpmButtons[i];
       button.classList.toggle('is-active', button.dataset.rpm === String(this.prefs.rpm));
-    });
-    this.root.querySelectorAll<HTMLButtonElement>('#clock-switch button').forEach((button) => {
+    }
+    for (let i = 0; i < this.clockButtons.length; i++) {
+      const button = this.clockButtons[i];
       const on = button.dataset.clock === 'on';
       button.classList.toggle('is-active', on === this.prefs.clockWhilePlaying);
-    });
+    }
 
     const foleyValue = String(Math.round(this.prefs.foley * 100));
     if (this.foley.value !== foleyValue && document.activeElement !== this.foley) {

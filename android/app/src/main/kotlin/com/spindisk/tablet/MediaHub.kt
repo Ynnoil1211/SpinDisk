@@ -43,6 +43,7 @@ object MediaHub {
     @Volatile
     var artBytes: ByteArray? = null
 
+    @Volatile
     private var artKey: String = ""
 
     /** Lo pone la actividad: recibe cada instantánea nueva. */

@@ -27,11 +27,34 @@ export const easeOutBack = (t: number): number => {
   return 1 + (c + 1) * x * x * x + c * x * x;
 };
 
+let timeFormatter: Intl.DateTimeFormat | null = null;
+let dateFormatter: Intl.DateTimeFormat | null = null;
+let cachedMinute = -1;
+let cachedClock = { time: '', date: '' };
+
 /** Hora local en formato 24 h y fecha larga en español. */
 export const formatClock = (d: Date): { time: string; date: string } => {
-  const time = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const date = d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
-  return { time, date: date.charAt(0).toUpperCase() + date.slice(1) };
+  const minute = Math.floor(d.getTime() / 60_000);
+  if (minute === cachedMinute) return cachedClock;
+  if (!timeFormatter) {
+    timeFormatter = new Intl.DateTimeFormat('es-CO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+  if (!dateFormatter) {
+    dateFormatter = new Intl.DateTimeFormat('es-CO', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+  }
+  const time = timeFormatter.format(d);
+  const date = dateFormatter.format(d);
+  cachedMinute = minute;
+  cachedClock = { time, date: date.charAt(0).toUpperCase() + date.slice(1) };
+  return cachedClock;
 };
 
 export const formatTime = (seconds: number): string => {
