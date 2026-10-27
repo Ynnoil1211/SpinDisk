@@ -24,9 +24,14 @@ import { SANS, SERIF } from '../theme/fonts.js';
  * Geometría del papelito con la hora. Se apoya arriba a la izquierda, en el
  * charco de luz, ligeramente torcido para que no parezca un widget.
  */
-const CLOCK_CARD = { x: 172, y: 104, w: 208, h: 94, angle: -0.055 };
+/**
+ * Geometría del papelito con la hora. Ubicado en la esquina inferior derecha,
+ * en una zona despejada que no cubre la carátula, las letras, el vinilo,
+ * el soporte de descanso del brazo, ni el panel inferior desplegable.
+ */
+const CLOCK_CARD = { x: 1115, y: 620, w: 176, h: 64, angle: 0.02 };
 /** Margen del sprite para que quepa la sombra difusa. */
-const CLOCK_PAD = 26;
+const CLOCK_PAD = 24;
 
 export class Scene {
   private canvas: HTMLCanvasElement;
@@ -286,8 +291,9 @@ export class Scene {
         lyrics: tt.lyrics,
         activeIndex: active,
         status: tt.lyricsStatus,
+        phraseIndex: tt.phraseIndex,
       };
-      const backKey = `${data.title}|${data.artist}|${active}|${tt.lyricsStatus}|${tt.rpm}|${data.album}`;
+      const backKey = `${data.title}|${data.artist}|${active}|${tt.lyricsStatus}|${tt.rpm}|${data.album}|${tt.phraseIndex}`;
       if (backKey !== this.backKey || !this.back) {
         this.back = makeSleeveBack(size, 2, palette, data);
         this.backKey = backKey;
@@ -666,22 +672,22 @@ export class Scene {
     ctx.textAlign = 'left';
 
     ctx.fillStyle = ink;
-    ctx.font = `500 ${Math.round(h * 0.4)}px ${SERIF}`;
+    ctx.font = `500 ${Math.round(h * 0.44)}px ${SERIF}`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = '-0.01em';
-    ctx.fillText(time, pad + 15, pad + h * 0.55);
+    ctx.fillText(time, pad + 14, pad + h * 0.52);
 
-    const ruleY = pad + h * 0.66;
+    const ruleY = pad + h * 0.64;
     ctx.strokeStyle = 'rgba(70,52,34,0.26)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(pad + 15, ruleY);
-    ctx.lineTo(pad + w - 15, ruleY);
+    ctx.moveTo(pad + 14, ruleY);
+    ctx.lineTo(pad + w - 14, ruleY);
     ctx.stroke();
 
     ctx.fillStyle = 'rgba(58,44,30,0.72)';
-    ctx.font = `500 ${Math.round(h * 0.088)}px ${SANS}`;
+    ctx.font = `500 ${Math.max(9, Math.round(h * 0.13))}px ${SANS}`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0.12em';
-    ctx.fillText(date.toUpperCase(), pad + 15, pad + h * 0.86);
+    ctx.fillText(date.toUpperCase(), pad + 14, pad + h * 0.86);
     ctx.restore();
 
     ctx.save();

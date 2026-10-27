@@ -149,6 +149,49 @@ export const makeSleeveFront = (
   return surface.canvas;
 };
 
+export const SLEEVE_PHRASES: readonly string[] = [
+  'En la tarde cálida, el recuerdo de ti emerge en silencio.',
+  'Las palabras no bastan para decir todo lo que siento.',
+  'Solo queda abrazarte fuerte cuando nos volvamos a ver.',
+  'Bajo la luz del sol, te ves aún más linda.',
+  'Flores, sol, lluvia y tú.',
+  'Escribo lo que te extraño en papel y tinta.',
+  'Con el paso del tiempo, las ganas de verte lo llenan todo.',
+  'Te quiero con una fuerza mayor que el sol naciente.',
+  'Quiero estar a tu lado por incontables días y noches.',
+  'Quiero darte un amor como la brisa de una noche de verano.',
+  'Encontramos alegría en la rutina y ternura en la distancia.',
+  'La espera cobra vida porque al otro lado estás tú.',
+  'Como brisa de primavera, dejaste tu huella en toda mi vida.',
+  'Te pienso en la calma, te sueño al dormir y te busco al despertar.',
+  'Lo que me das es más vasto que toda la Vía Láctea.',
+  'Enamorarme de ti es lo más hermoso que pude imaginar.',
+  'Eres la carta de amor más bella que el mundo escribió para mí.',
+  'Tienes la magia de acelerar el tiempo cuando estamos juntos.',
+  'Por fin comprendí que siempre te estuve esperando a ti.',
+  'Ya no debo esperar más; tú eres mi fortuna.',
+  'Eres brisa suave, lluvia fina y nube.',
+  'Eres un cuadro de todo lo bello y un poema de cada paisaje.',
+  'Eres el sueño más anhelado de mi corazón.',
+  'Tu amor hizo florecer un corazón que antes era hojas secas.',
+  'Eres la carta de amor que nunca terminaré de escribir.',
+  'Eres las estrellas que jamás terminaré de contar.',
+  'Eres el alma más brillante e incomparable de este mundo.',
+  'En el aire húmedo, se respira todo lo que te extraño.',
+  'Al caer la tarde, siempre queda la calidez de nuestras manos.',
+  'Desde que te amo, el tiempo y el mundo tienen un brillo único.',
+  'Qué suerte tenerte; qué fortuna tan grande que seas tú.',
+  'Te sigo amando como aquel primer día en que me enamoré de ti.',
+  'Con una brisa fresca de tarde y lluvia suave, cae la noche despacio.',
+  'Si me recuerdas, no me importa que el resto del mundo me olvide.',
+  'Mientras suene la música, sigue bailando.',
+  'Escucha la canción del viento.',
+  'Siempre hay una canción que nos devuelve al instante en que nos amamos.',
+  'Los recuerdos te calientan por dentro, igual que una vieja melodía.',
+  'La luna es hermosa esta noche.',
+  'En algún lugar, una aguja cae sobre el vinilo y el tiempo se detiene contigo.',
+];
+
 export interface SleeveBackData {
   title: string;
   artist: string;
@@ -158,6 +201,7 @@ export interface SleeveBackData {
   lyrics: Lyrics | null;
   activeIndex: number;
   status: 'idle' | 'loading' | 'ready' | 'missing';
+  phraseIndex?: number;
 }
 
 /**
@@ -218,31 +262,38 @@ export const makeSleeveBack = (
 
   // Cabecera impresa.
   ctx.fillStyle = hsl(30, 0.18, 0.38);
-  ctx.font = `600 ${size * 0.019}px ${SANS}`;
+  ctx.font = `600 ${size * 0.0195}px ${SANS}`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('LINER NOTES', pad, pad * 0.82);
+  ctx.fillText('Uva Pasita Está Escuchando...', pad, pad * 0.82);
 
   ctx.fillStyle = palette.labelInk;
   ctx.font = `600 ${size * 0.044}px ${SERIF}`;
   const titleLines = wrapText(ctx, data.title, size - pad * 2, 2);
-  let headY = pad * 1.22;
-  for (const line of titleLines) {
-    ctx.fillText(line, pad, headY);
-    headY += size * 0.05;
+  let titleY = pad * 1.22;
+  for (let i = 0; i < titleLines.length; i++) {
+    ctx.fillText(titleLines[i], pad, titleY);
+    if (i < titleLines.length - 1) {
+      titleY += size * 0.048;
+    }
   }
+
+  // Artista: ajustado inmediatamente bajo el título, sin hueco excesivo.
+  const artistY = titleY + size * 0.034;
   ctx.fillStyle = hsl(30, 0.20, 0.38);
   ctx.font = `500 ${size * 0.021}px ${SANS}`;
-  ctx.fillText(data.artist.toUpperCase(), pad, headY + size * 0.012);
+  ctx.fillText(data.artist.toUpperCase(), pad, artistY);
 
+  // Línea divisoria.
+  const ruleY = artistY + size * 0.028;
   ctx.strokeStyle = 'rgba(60,44,28,0.28)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(pad, headY + size * 0.042);
-  ctx.lineTo(size - pad, headY + size * 0.042);
+  ctx.moveTo(pad, ruleY);
+  ctx.lineTo(size - pad, ruleY);
   ctx.stroke();
 
-  const bodyTop = headY + size * 0.095;
+  const bodyTop = ruleY + size * 0.038;
   const bodyBottom = size - pad * 1.5;
   const lineHeight = size * 0.0375;
 
@@ -263,47 +314,47 @@ export const makeSleeveBack = (
     });
     const heightOf = (i: number): number => Math.max(1, wrapped[i].length) * rowH + gap;
     const avail = bodyBottom - bodyTop;
-    let start = 0;
-    if (active >= 0) {
-      // Retrocede desde el verso activo hasta ocupar ~40% del alto disponible.
-      let used = heightOf(active);
-      start = active;
-      while (start > 0 && used + heightOf(start - 1) <= avail * 0.4) {
-        start--;
-        used += heightOf(start);
-      }
-    } else {
-      const ratio = Math.min(1, Math.max(0, (active + 1) / lines.length));
-      start = Math.floor(ratio * Math.max(0, lines.length - 6));
+    const centerY = bodyTop + avail / 2;
+    // La estrofa actual (o la primera si aún no arranca) se ubica en la mitad
+    // del lienzo disponible, permitiendo que la oración se lea completa y respire.
+    const target = active >= 0 ? active : 0;
+    let offsetBefore = 0;
+    for (let i = 0; i < target; i++) {
+      offsetBefore += heightOf(i);
     }
+    const startY = centerY - heightOf(target) / 2 - offsetBefore;
+
     ctx.save();
+    ctx.textBaseline = 'top';
     ctx.beginPath();
     ctx.rect(0, bodyTop - size * 0.01, size, avail + size * 0.02);
     ctx.clip();
-    let y = bodyTop;
-    for (let i = start; i < lines.length; i++) {
+
+    let curY = startY;
+    for (let i = 0; i < lines.length; i++) {
       const text = wrapped[i];
       const h = heightOf(i);
-      if (y + h - gap > bodyBottom + rowH * 0.3 && i > start) break;
-      const isActive = i === active;
-      const distance = Math.abs(i - active);
-      const fade = isActive ? 1 : active >= 0 ? Math.max(0.4, 0.78 - distance * 0.1) : 0.62;
-      ctx.globalAlpha = fade;
-      ctx.fillStyle = isActive ? accentInk : palette.labelInk;
-      for (let j = 0; j < text.length; j++) {
-        if (text[j]) ctx.fillText(text[j], size / 2, y + j * rowH);
+      if (curY + h >= bodyTop - size * 0.02 && curY <= bodyBottom + size * 0.02) {
+        const isActive = i === active;
+        const distance = Math.abs(i - (active >= 0 ? active : 0));
+        const fade = isActive ? 1 : active >= 0 ? Math.max(0.35, 0.78 - distance * 0.12) : 0.62;
+        ctx.globalAlpha = fade;
+        ctx.fillStyle = isActive ? accentInk : palette.labelInk;
+        for (let j = 0; j < text.length; j++) {
+          if (text[j]) ctx.fillText(text[j], size / 2, curY + j * rowH);
+        }
+        if (isActive && text.length > 0 && text[0]) {
+          const lastY = curY + (text.length - 1) * rowH;
+          const width = Math.min(size - pad * 2.2, ctx.measureText(text[text.length - 1] ?? '').width + size * 0.06);
+          drawHandUnderline(ctx, (size - width) / 2, lastY + rowH * 0.95, width, accentInk);
+          ctx.fillStyle = accentInk;
+          ctx.beginPath();
+          ctx.arc(pad * 0.72, curY + rowH * 0.45, size * 0.0045, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
-      if (isActive && text.length > 0 && text[0]) {
-        const lastY = y + (text.length - 1) * rowH;
-        const width = Math.min(size - pad * 2.2, ctx.measureText(text[text.length - 1] ?? '').width + size * 0.06);
-        drawHandUnderline(ctx, (size - width) / 2, lastY + lineHeight * 0.52, width, accentInk);
-        ctx.fillStyle = accentInk;
-        ctx.beginPath();
-        ctx.arc(pad * 0.72, y - size * 0.008, size * 0.0045, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      y += h;
+      curY += h;
+      if (curY > bodyBottom + size * 0.05) break;
     }
     ctx.restore();
     if (data.status === 'loading') {
@@ -386,11 +437,22 @@ export const makeSleeveBack = (
     ctx.restore();
   }
 
-  // Pie de imprenta.
+  // Pie de imprenta: frase poética aleatoria.
+  const phrase = (data.phraseIndex !== undefined && SLEEVE_PHRASES[Math.abs(data.phraseIndex) % SLEEVE_PHRASES.length])
+    ? SLEEVE_PHRASES[Math.abs(data.phraseIndex) % SLEEVE_PHRASES.length]
+    : SLEEVE_PHRASES[0];
+
   ctx.textAlign = 'center';
-  ctx.fillStyle = hsl(30, 0.12, 0.46);
-  ctx.font = `500 ${size * 0.0165}px ${SANS}`;
-  ctx.fillText('SPINDISK · HECHO PARA ESCUCHARSE DESPACIO', size / 2, size - pad * 0.62);
+  ctx.fillStyle = hsl(30, 0.14, 0.44);
+  const maxPhraseWidth = size - pad * 1.6;
+  let phraseFontSize = size * 0.0155;
+  ctx.font = `italic 500 ${phraseFontSize}px ${SERIF}`;
+  let measured = ctx.measureText(phrase).width;
+  if (measured > maxPhraseWidth) {
+    phraseFontSize = Math.max(8.5, phraseFontSize * (maxPhraseWidth / measured));
+    ctx.font = `italic 500 ${phraseFontSize}px ${SERIF}`;
+  }
+  ctx.fillText(phrase, size / 2, size - pad * 0.62);
 
   drawEdgeWear(ctx, size);
   return surface.canvas;

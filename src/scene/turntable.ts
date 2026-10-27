@@ -19,6 +19,7 @@ import {
   armAngleForProgress,
   progressForArmAngle,
 } from './layout.js';
+import { SLEEVE_PHRASES } from './sleeve.js';
 
 export type LyricsStatus = 'idle' | 'loading' | 'ready' | 'missing';
 
@@ -59,6 +60,7 @@ export class Turntable {
   lyrics: Lyrics | null = null;
   lyricsStatus: LyricsStatus = 'idle';
   textureSeed = 1;
+  phraseIndex = Math.floor(Math.random() * SLEEVE_PHRASES.length);
 
   progress = 0;
   duration = 0;
@@ -261,6 +263,7 @@ export class Turntable {
       this.progress = clamp(snapshot.currentTime, 0, Math.max(0, snapshot.duration));
       this.revealAt = now + REVEAL_DELAY;
       this.textureSeed = hashString(key) % 100000;
+      this.phraseIndex = Math.floor(Math.random() * SLEEVE_PHRASES.length);
       this.loadCover(snapshot.coverUrl);
       this.loadLyrics(snapshot);
       this.onTrackVisual?.('track');
