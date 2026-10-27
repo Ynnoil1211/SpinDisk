@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
+import android.view.Gravity
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -43,24 +44,52 @@ class MainActivity : Activity() {
         // Un fallo antes de esto deja la app cerrándose sin decir nada, que es
         // justo lo que no se puede depurar en un teléfono ajeno.
         recordCrashes()
-        showLastCrashIfAny()
 
         try {
+            // Una pantalla de papel con la versión antes de tocar la WebView.
+            // Si el teléfono enseña esto y luego se cierra, el problema está en
+            // el motor; si no llega a verse, ni siquiera se llegó a arrancar.
+            showBoot("arrancando…")
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             goFullscreen()
+            showLastCrashIfAny()
+            window.decorView.post { mountWeb() }
+        } catch (error: Throwable) {
+            showFailure(error)
+        }
+    }
 
+    /** La WebView, ya con la pantalla del sistema montada. */
+    private fun mountWeb() {
+        try {
             val view = buildWeb()
             web = view
             setContentView(view)
-
             MediaHub.sink = { json -> runOnUiThread { pushToWeb(json) } }
-
             view.loadUrl("file:///android_asset/www/index.html")
         } catch (error: Throwable) {
             // Si el motor del sistema falla en un aparato concreto, es mejor
             // contarlo en pantalla que desaparecer sin explicación.
             showFailure(error)
         }
+    }
+
+    /** Texto de papel con la versión, para saber qué APK está corriendo. */
+    private fun showBoot(step: String) {
+        val version = runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull() ?: "?"
+
+        val label = TextView(this).apply {
+            text = "SpinDisk $version\n$step"
+            setTextColor(Color.parseColor("#3A2C1E"))
+            setBackgroundColor(Color.parseColor("#F2E8D5"))
+            textSize = 17f
+            gravity = Gravity.CENTER
+            typeface = Typeface.create("serif", Typeface.NORMAL)
+            setPadding(48, 48, 48, 48)
+        }
+        setContentView(label)
     }
 
     /** La WebView con su configuración y la portada interceptada. */
