@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.media.session.MediaController
 import android.media.session.PlaybackState
+import android.util.Log
 import java.io.ByteArrayOutputStream
 
 /**
@@ -20,6 +21,11 @@ object MediaHub {
     const val SPOTIFY = "com.spotify.music"
     const val YOUTUBE_MUSIC = "com.google.android.apps.youtube.music"
     const val YOUTUBE = "com.google.android.youtube"
+
+    private const val TAG = "SpinDisk"
+
+    /** Lado máximo de la portada que se codifica: de sobra para la galleta. */
+    private const val ART_MAX_SIDE = 512
 
     /** El servicio está enganchado (el usuario concedió el acceso). */
     @Volatile
@@ -63,9 +69,32 @@ object MediaHub {
         // el WebView acabaría escapando y rompiendo la comparación.
         val token = "${key.hashCode().toString(16)}x${bitmap.width}x${bitmap.height}"
         if (token != artKey || artBytes == null) {
-            val out = ByteArrayOutputStream()
-            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 92, out)) return null
-            artBytes = out.toByteArray()
+            // Algunas apps mandan portadas de 1500 px o más. Codificarlas tal
+            // cual en PNG puede agotar la memoria de un móvil modesto —y el
+            // servicio vive en el mismo proceso: se lleva la app por delante—.
+            // Con 512 px de lado sobra para una galleta de 86 px y para el
+            // fondo extraído por el lienzo.
+            val bytes = runCatching {
+                val side = maxOf(bitmap.width, bitmap.height)
+                val scaled = if (side > ART_MAX_SIDE) {
+                    val ratio = ART_MAX_SIDE.toFloat() / side
+                    Bitmap.createScaledBitmap(
+                        bitmap,
+                        (bitmap.width * ratio).toInt().coerceAtLeast(1),
+                        (bitmap.height * ratio).toInt().coerceAtLeast(1),
+                        true,
+                    )
+                } else {
+                    bitmap
+                }
+                val out = ByteArrayOutputStream()
+                if (!scaled.compress(Bitmap.CompressFormat.PNG, 92, out)) return null
+                out.toByteArray()
+            }.getOrElse { error ->
+                Log.w(TAG, "No se pudo preparar la portada: ${error.message}")
+                null
+            } ?: return null
+            artBytes = bytes
             artKey = token
         }
         return "https://spindisk.local/art?t=$token"

@@ -4,10 +4,12 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -16,8 +18,11 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ScrollView
+import android.widget.TextView
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
+import java.io.File
 
 /**
  * La ventana: una WebView a pantalla completa con el lienzo dentro.
@@ -29,13 +34,34 @@ class MainActivity : Activity() {
 
     private var web: WebView? = null
     private var askedForAccess = false
+    private var pendingNotice: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        recordCrashes()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         goFullscreen()
 
+        val view = runCatching { buildWeb() }.getOrElse { error ->
+            // Si el motor del sistema falla en un aparato concreto, es mejor
+            // contarlo en pantalla que desaparecer sin explicación.
+            showFailure(error)
+            return
+        }
+
+        web = view
+        setContentView(view)
+
+        MediaHub.sink = { json -> runOnUiThread { pushToWeb(json) } }
+
+        view.loadUrl("file:///android_asset/www/index.html")
+
+        showLastCrashIfAny()
+    }
+
+    /** La WebView con su configuración y la portada interceptada. */
+    private fun buildWeb(): WebView {
         val view = WebView(this)
         view.setBackgroundColor(Color.parseColor("#0B0908"))
         view.settings.apply {
@@ -85,17 +111,17 @@ class MainActivity : Activity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 // La web acaba de nacer: que reciba lo que ya estaba sonando.
                 pushToWeb(MediaHub.lastJson)
+                pendingNotice?.let { notice ->
+                    pendingNotice = null
+                    pushNotice(notice)
+                }
             }
         }
 
         view.addJavascriptInterface(NativeBridge(this), "SpinDiskNative")
-        web = view
-        setContentView(view)
-
-        MediaHub.sink = { json -> runOnUiThread { pushToWeb(json) } }
-
-        view.loadUrl("file:///android_asset/www/index.html")
+        return view
     }
+
 
     // ------------------------------------------------------------------ ciclo
 
@@ -140,11 +166,19 @@ class MainActivity : Activity() {
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == me }
     }
 
+    /**
+     * Se avisa dentro de la app y se deja que el usuario pulse «Activar».
+     *
+     * Antes se abrían los ajustes del sistema de golpe, y eso se siente como
+     * que la aplicación se cierra recién abierta: en la tablet y en el móvil
+     * el usuario aterrizaba en una lista de aplicaciones sin entender por qué.
+     */
     fun askForNotificationAccess() {
-        pushNotice(
-            "Para leer lo que suena, activa el acceso a notificaciones de SpinDisk",
-        )
-        openNotificationSettings()
+        val message = "Para leer lo que suena, activa el acceso a notificaciones de SpinDisk"
+        pushNotice(message)
+        if (web == null) {
+            pendingNotice = message
+        }
     }
 
     fun openNotificationSettings() {
@@ -171,6 +205,79 @@ class MainActivity : Activity() {
         view.evaluateJavascript(
             "window.__spindisk&&window.__spindisk.onSnapshot($payload)",
             null,
+        )
+    }
+
+    // ------------------------------------------------------------- diagnóstico
+
+    private fun crashFile() = File(filesDir, "ultimo-fallo.txt")
+
+    /**
+     * Guarda la traza del próximo fallo.
+     *
+     * En la tablet no hay `adb` ni logcat: la única forma de saber por qué se
+     * cerró la app es que ella misma lo apunte y lo cuente al volver a abrir.
+     */
+    private fun recordCrashes() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                crashFile().writeText(
+                    "${error.javaClass.name}: ${error.message}\n\n${error.stackTraceToString()}",
+                )
+            }
+            previous?.uncaughtException(thread, error)
+        }
+    }
+
+    /** Pantalla mínima cuando ni siquiera se pudo montar la WebView. */
+    private fun showFailure(error: Throwable) {
+        runCatching { crashFile().writeText(error.stackTraceToString()) }
+
+        val text = TextView(this).apply {
+            setPadding(48, 48, 48, 48)
+            setTextColor(Color.parseColor("#3A2C1E"))
+            textSize = 14f
+            typeface = Typeface.MONOSPACE
+            setText(
+                "SpinDisk no pudo arrancar en este aparato.\n\n" +
+                    "${error.javaClass.simpleName}: ${error.message}\n\n" +
+                    error.stackTraceToString(),
+            )
+        }
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(Color.parseColor("#F2E8D5"))
+            addView(text)
+        }
+        web = null
+        setContentView(scroll)
+    }
+
+    /** Traza del último fallo, encima de la escena y descartable con un toque. */
+    private fun showLastCrashIfAny() {
+        val file = crashFile()
+        if (!file.exists()) return
+        val trace = runCatching { file.readText() }.getOrNull().orEmpty()
+        runCatching { file.delete() }
+        if (trace.isBlank()) return
+        if (web == null) return
+
+        val text = TextView(this).apply {
+            setPadding(32, 24, 32, 24)
+            setTextColor(Color.parseColor("#F6EFE2"))
+            textSize = 11f
+            typeface = Typeface.MONOSPACE
+            setBackgroundColor(Color.parseColor("#CC2A211A"))
+            setText("Último fallo:\n\n" + trace.take(4000) + "\n\n(toca para cerrar)")
+        }
+        val scroll = ScrollView(this).apply { addView(text) }
+        scroll.setOnClickListener { (scroll.parent as? ViewGroup)?.removeView(scroll) }
+        addContentView(
+            scroll,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
         )
     }
 

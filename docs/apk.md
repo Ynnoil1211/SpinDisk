@@ -58,6 +58,17 @@ Si en cambio dice **«Aplicación no instalada»**, no es un bloqueo sino un rec
   instalaciones hechas **antes** de ese cambio llevan otra firma y hay que
   desinstalarlas una vez.
 
+## Qué pasa al abrirlo por primera vez
+
+Se ve la mesa con el tocadiscos vacío y una banda arriba: «Para leer lo que
+suena, SpinDisk necesita acceso a las notificaciones». **No salta sola a los
+ajustes** —antes lo hacía, y se sentía exactamente como si la app se cerrara al
+entrar—: el botón «Activar» de esa banda es el que abre la pantalla del sistema.
+
+Si la app se cerrara de verdad, al volver a abrirla aparece encima la traza del
+último fallo, con un toque para descartarla. Una foto de esa banda basta para
+saber qué pasó: no hace falta cable, `adb` ni logcat.
+
 ## Lo que no se puede comprobar sin la tablet
 
 Peso real del APK, RAM en reposo y en reproducción, y batería en una sesión larga: son

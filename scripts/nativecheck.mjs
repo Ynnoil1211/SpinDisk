@@ -206,6 +206,26 @@ check(
   'así una actualización se instala encima',
 );
 
+// --- primera impresión en un aparato ajeno ----------------------------------
+// Abrir los ajustes del sistema nada más arrancar se siente como si la app se
+// cerrara: el aviso tiene que quedarse dentro y esperar a que el usuario pulse.
+const askBody = /fun askForNotificationAccess\(\)([\s\S]*?)\n    }/.exec(ktActivity)?.[1] ?? '';
+check(
+  'el permiso se pide dentro de la app',
+  askBody.length > 0 && !askBody.includes('openNotificationSettings('),
+  'no salta a los ajustes sin que el usuario lo pida',
+);
+check(
+  'apunta la traza del último fallo',
+  /ultimo-fallo\.txt/.test(ktActivity) && /setDefaultUncaughtExceptionHandler/.test(ktActivity),
+  'si se cierra, al volver lo cuenta',
+);
+check(
+  'la portada se reduce antes de codificarla',
+  /ART_MAX_SIDE/.test(ktHub) && /createScaledBitmap/.test(ktHub),
+  'una portada de 1500 px no debe poder tumbar el proceso',
+);
+
 console.log(
   failures === 0
     ? `\n✓ ${checks}/${checks} comprobaciones · el contrato nativo cuadra`
