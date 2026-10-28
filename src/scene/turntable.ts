@@ -5,7 +5,7 @@
  * los gestos en comandos hacia el puente activo (Sandbox o Android).
  */
 
-import type { PlayerBridge, TrackSnapshot, Preferences, DiscTexture } from '../core/types.js';
+import type { PlayerBridge, TrackSnapshot, Preferences, DiscTexture, DeskTexture } from '../core/types.js';
 import { Foley } from '../audio/foley.js';
 import type { Lyrics } from '../bridge/lyrics.js';
 import { activeLineIndex, fetchLyricsWithStatus } from '../bridge/lyrics.js';
@@ -25,7 +25,6 @@ export type LyricsStatus = 'idle' | 'loading' | 'ready' | 'missing';
 
 const REVEAL_DELAY = 450;
 const CLOCK_AFTER = 60_000;
-const PAUSE_PARK = 900;
 /** Duración del giro de la funda; el canto pasa por el medio del recorrido. */
 const FLIP_MS = 560;
 
@@ -122,8 +121,20 @@ export class Turntable {
   }
 
   setPreferences(prefs: Preferences): void {
+    const prevTexture = this.prefs.discTexture;
+    const prevDesk = this.prefs.deskTexture;
+    const prevRpm = this.prefs.rpm;
+    const prevClock = this.prefs.clockWhilePlaying;
     this.prefs = prefs;
     this.foley.setVolume(prefs.foley);
+    if (
+      this.prefs.discTexture !== prevTexture ||
+      this.prefs.deskTexture !== prevDesk ||
+      this.prefs.rpm !== prevRpm ||
+      this.prefs.clockWhilePlaying !== prevClock
+    ) {
+      this.notify();
+    }
   }
 
   async connect(): Promise<void> {
@@ -140,9 +151,8 @@ export class Turntable {
     if (!this.track) return REST_ANGLE;
     if (this.clock > 0.4) return REST_ANGLE;
     if (!this.playing && !this.scrubbing) {
-      // Tras unos segundos en pausa el brazo viaja hasta su soporte lateral.
-      const parked = this.pausedAt > 0 && performance.now() - this.pausedAt > PAUSE_PARK;
-      return parked ? REST_ANGLE : this.needleAngle;
+      // Al pausar, el brazo fonocaptor viaja fluidamente hacia su soporte de descanso.
+      return REST_ANGLE;
     }
     return this.needleAngle;
   }
@@ -155,6 +165,10 @@ export class Turntable {
 
   get texture(): DiscTexture {
     return this.prefs.discTexture;
+  }
+
+  get deskTexture(): DeskTexture {
+    return this.prefs.deskTexture;
   }
 
   get rpm(): 33 | 45 {
@@ -173,6 +187,7 @@ export class Turntable {
     return (
       Math.abs(this.spin) < 0.0004 &&
       Math.abs(this.armLift - (this.playing ? 0 : 1)) < 0.02 &&
+      Math.abs(this.armAngle - this.armAngleTarget) < 0.015 &&
       Math.abs(this.discOut - this.discTarget) < 0.005 &&
       Math.abs(this.flip - this.flipTarget) < 0.002 &&
       Math.abs(this.clock - this.clockTarget) < 0.004 &&
@@ -275,6 +290,7 @@ export class Turntable {
       this.loadCover(snapshot.coverUrl);
       this.loadLyrics(snapshot);
       this.onTrackVisual?.('track');
+      this.notify();
     } else {
       this.track = snapshot;
       if (snapshot.duration > 0) this.duration = snapshot.duration;
@@ -296,7 +312,7 @@ export class Turntable {
       ) {
         return;
       }
-      if (snapshot.canSeek !== prevCanSeek) {
+      if (snapshot.canSeek !== prevCanSeek || drift > 0.9) {
         this.notify();
       }
     }
@@ -329,6 +345,7 @@ export class Turntable {
       this.cover = null;
       this.palette = defaultPalette();
       this.onTrackVisual?.('cover');
+      this.notify();
       return;
     }
     const image = new Image();
@@ -355,6 +372,7 @@ export class Turntable {
       this.coverReady = false;
       this.palette = defaultPalette();
       this.onTrackVisual?.('cover');
+      this.notify();
     };
     image.src = url;
   }
@@ -696,6 +714,16 @@ export class Turntable {
     this.progress = clamp(seconds, 0, Math.max(0.1, this.duration));
     void this.bridge.seek(this.progress);
     this.onChange?.();
+  }
+
+  getSystemVolume(): number | undefined {
+    return typeof this.bridge.getVolume === 'function' ? this.bridge.getVolume() : undefined;
+  }
+
+  setSystemVolume(level: number): void {
+    if (typeof this.bridge.setVolume === 'function') {
+      this.bridge.setVolume(level);
+    }
   }
 
   openSource(floating = false): void {

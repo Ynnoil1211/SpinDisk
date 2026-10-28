@@ -1,3 +1,4 @@
+import type { DeskTexture } from '../core/types.js';
 /**
  * Motor cromático "Tierra y Pastel".
  *
@@ -197,10 +198,25 @@ export const paletteFromImage = (img: HTMLImageElement): Palette => {
 };
 
 /** Aplica la paleta al documento para que el panel y el sandbox la hereden. */
-export const applyPaletteToCss = (palette: Palette): void => {
+export const applyPaletteToCss = (palette: Palette, deskTexture: DeskTexture = 'album'): void => {
   const style = document.documentElement.style;
-  style.setProperty('--paper', palette.deskLight);
-  style.setProperty('--paper-deep', palette.deskDark);
+  let light = palette.deskLight;
+  let dark = palette.deskDark;
+  if (deskTexture === 'wood') {
+    light = '#362a20';
+    dark = '#211812';
+  } else if (deskTexture === 'sand') {
+    light = '#e5dbd0';
+    dark = '#c9bcae';
+  } else if (deskTexture === 'slate') {
+    light = '#282523';
+    dark = '#171514';
+  } else if (deskTexture === 'sage') {
+    light = '#454e46';
+    dark = '#2d352e';
+  }
+  style.setProperty('--paper', light);
+  style.setProperty('--paper-deep', dark);
   style.setProperty('--ink', palette.ink);
   style.setProperty('--accent', palette.accent);
   style.setProperty('--panel', hsl(40, 0.24, 0.94, 0.82));

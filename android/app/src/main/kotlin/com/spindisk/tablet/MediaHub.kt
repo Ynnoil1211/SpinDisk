@@ -1,6 +1,8 @@
 package com.spindisk.tablet
 
 import android.app.ActivityOptions
+import android.media.AudioManager
+import kotlin.math.roundToInt
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -140,6 +142,27 @@ object MediaHub {
         if (state.actions and PlaybackState.ACTION_SEEK_TO == 0L) return false
         return runCatching {
             session.transportControls.seekTo((seconds * 1000.0).toLong())
+            true
+        }.getOrDefault(false)
+    }
+
+    /** Lee el volumen multimedia del sistema (0.0 .. 1.0). */
+    fun getVolume(context: Context): Double {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return 1.0
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (max <= 0) return 1.0
+        val current = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        return (current.toDouble() / max.toDouble()).coerceIn(0.0, 1.0)
+    }
+
+    /** Cambia el volumen multimedia del dispositivo sin tocar permisos especiales. */
+    fun setVolume(context: Context, level: Double): Boolean {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        if (max <= 0) return false
+        val target = (level.coerceIn(0.0, 1.0) * max).roundToInt()
+        return runCatching {
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
             true
         }.getOrDefault(false)
     }

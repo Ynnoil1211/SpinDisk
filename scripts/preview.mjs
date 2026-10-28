@@ -26,8 +26,8 @@ const scenario = (process.argv[2] ?? 'desk').toLowerCase();
 const LINER = new Set(['liner', 'nolyrics', 'instrumental', 'flipmid']);
 /** El reloj de día (la hora mientras suena) es la fase F5. */
 const CLOCK = new Set(['clocktag']);
-/** Las cuatro texturas del selector de vinilo. */
-const TEXTURES = new Set(['marble', 'black', 'cream', 'glass']);
+/** Las siete texturas del selector de vinilo. */
+const TEXTURES = new Set(['marble', 'black', 'cream', 'glass', 'smoke', 'terracotta', 'sage']);
 const prefix = LINER.has(scenario) ? 'f4' : CLOCK.has(scenario) ? 'f5' : TEXTURES.has(scenario) ? 'f6' : 'f1';
 const outFile = path.resolve('docs/captures', `${prefix}-${scenario}.png`);
 const FAKE_FPS = 1000 / STEP;

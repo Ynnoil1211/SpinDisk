@@ -64,10 +64,17 @@ function makeTurntable() {
     openSource(floating) {
       this.calls.push(`source:${floating ? 'floating' : 'tap'}`);
     },
+    getSystemVolume() {
+      return 0.55;
+    },
+    setSystemVolume(v) {
+      this.calls.push(`volume:${v.toFixed(2)}`);
+      return true;
+    },
   };
 }
 
-const prefs = { discTexture: 'marble', rpm: 33, foley: 0.55, clockWhilePlaying: false };
+const prefs = { discTexture: 'marble', deskTexture: 'album', rpm: 33, foley: 0.55, clockWhilePlaying: false };
 const notices = [];
 const prefEvents = [];
 const turntable = makeTurntable();
@@ -196,13 +203,19 @@ turntable.playing = true;
 panel.refresh();
 
 // -------------------------------------------------------------------- texturas
-group('Texturas del vinilo');
+group('Texturas del vinilo y fondo');
 const swatch = document.querySelector('[data-texture="glass"]');
 swatch.dispatch('click');
 check('elegir cristal cambia la preferencia', prefs.discTexture === 'glass');
 check('la preferencia se propaga al motor', prefEvents.at(-1)?.discTexture === 'glass');
 check('el aviso nombra la textura', (notices.at(-1) ?? '').startsWith('Textura:'), notices.at(-1));
 check('el anillo activo se mueve', swatch.classList.contains('is-active') && !document.querySelector('[data-texture="marble"]').classList.contains('is-active'));
+
+const woodSwatch = document.querySelector('[data-desk="wood"]');
+woodSwatch.dispatch('click');
+check('elegir madera cambia el fondo', prefs.deskTexture === 'wood');
+check('el aviso nombra el fondo', (notices.at(-1) ?? '').startsWith('Fondo:'), notices.at(-1));
+check('el fondo activo se mueve', woodSwatch.classList.contains('is-active') && !document.querySelector('[data-desk="album"]').classList.contains('is-active'));
 
 // ------------------------------------------------------------------------ RPM
 group('Velocidad');
@@ -221,6 +234,7 @@ foley.value = '30';
 foley.dispatch('input');
 check('el deslizador mueve el volumen', Math.abs(prefs.foley - 0.3) < 1e-6, String(prefs.foley));
 check('el volumen llega al motor', Math.abs((prefEvents.at(-1)?.foley ?? -1) - 0.3) < 1e-6);
+check('el volumen se envía al sistema Android', turntable.calls.includes('volume:0.30'), turntable.calls.join(','));
 check('cambiar el volumen no obliga a redibujar el panel', el('t-state').textContent === 'escuchando');
 foley.dispatch('change');
 check('soltar el deslizador no rompe nada', premio(() => panel.refresh()));
@@ -273,7 +287,7 @@ check('el borde abre aunque el panel esté cerrado', decideTap(true, false, fals
 
 // ------------------------------------------------------------------- preferencias
 group('Preferencias persistentes');
-check('cada cambio entrega el objeto completo', prefEvents.every((p) => 'discTexture' in p && 'rpm' in p && 'foley' in p && 'clockWhilePlaying' in p));
+check('cada cambio entrega el objeto completo', prefEvents.every((p) => 'discTexture' in p && 'deskTexture' in p && 'rpm' in p && 'foley' in p && 'clockWhilePlaying' in p));
 
 function premio(fn) {
   try {

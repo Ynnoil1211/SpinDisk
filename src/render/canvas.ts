@@ -1,3 +1,4 @@
+import type { DiscTexture } from '../core/types.js';
 /** Primitivas de dibujo compartidas. Nada de librerías: Canvas 2D puro. */
 
 export interface Surface {
@@ -210,7 +211,24 @@ export interface Rgb {
 }
 
 export const cssToRgb = (css: string): Rgb => {
-  const match = /hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/i.exec(css);
+  const clean = css.trim();
+  const hex = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(clean);
+  if (hex) {
+    return {
+      r: parseInt(hex[1], 16),
+      g: parseInt(hex[2], 16),
+      b: parseInt(hex[3], 16),
+    };
+  }
+  const hex3 = /^#?([a-f\d])([a-f\d])([a-f\d])$/i.exec(clean);
+  if (hex3) {
+    return {
+      r: parseInt(hex3[1] + hex3[1], 16),
+      g: parseInt(hex3[2] + hex3[2], 16),
+      b: parseInt(hex3[3] + hex3[3], 16),
+    };
+  }
+  const match = /hsl\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/i.exec(clean);
   if (match) {
     const h = parseFloat(match[1]) / 360;
     const s = parseFloat(match[2]) / 100;
@@ -233,7 +251,7 @@ export const cssToRgb = (css: string): Rgb => {
       b: hue2rgb(p, q, h - 1 / 3) * 255,
     };
   }
-  const rgb = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i.exec(css);
+  const rgb = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i.exec(clean);
   if (rgb) return { r: +rgb[1], g: +rgb[2], b: +rgb[3] };
   return { r: 200, g: 190, b: 170 };
 };
@@ -247,7 +265,7 @@ interface MarbleField {
 const fieldCache = new Map<string, MarbleField>();
 const MAX_FIELDS = 6;
 
-const getMarbleField = (size: number, seed: number, kind: 'marble' | 'black' | 'cream' | 'glass'): MarbleField => {
+const getMarbleField = (size: number, seed: number, kind: DiscTexture): MarbleField => {
   const key = `${size}|${seed}|${kind}`;
   const cached = fieldCache.get(key);
   if (cached) return cached;
@@ -324,8 +342,8 @@ const getMarbleField = (size: number, seed: number, kind: 'marble' | 'black' | '
 
 const grooveOverlayCache = new Map<string, HTMLCanvasElement>();
 
-const getMarbleGrooves = (size: number, kind: 'marble' | 'black' | 'cream' | 'glass'): HTMLCanvasElement => {
-  const rings = kind === 'black' ? 120 : 88;
+const getMarbleGrooves = (size: number, kind: DiscTexture): HTMLCanvasElement => {
+  const rings = (kind === 'black' || kind === 'smoke') ? 120 : 88;
   const key = `${size}|${rings}`;
   const cached = grooveOverlayCache.get(key);
   if (cached) return cached;
@@ -357,7 +375,7 @@ export const makeMarbleTexture = (
   colors: MarbleColors,
   size: number,
   seed: number,
-  kind: 'marble' | 'black' | 'cream' | 'glass',
+  kind: DiscTexture,
   reuse?: HTMLCanvasElement | null,
 ): HTMLCanvasElement => {
   const surface = makeSurface(size, size, 1, reuse);
@@ -392,11 +410,27 @@ export const makeMarbleTexture = (
       data[idx + 2] = 196 + t * 46;
       data[idx + 3] = 255;
     }
+  } else if (kind === 'smoke') {
+    for (let i = 0; i < count; i++) {
+      if (!mask[i]) continue;
+      const value = ttIdx[i];
+      const idx = i * 4;
+      data[idx] = Math.round(28 + value * 0.18);
+      data[idx + 1] = Math.round(26 + value * 0.17);
+      data[idx + 2] = Math.round(24 + value * 0.16);
+      data[idx + 3] = 210;
+    }
   } else {
-    const base = cssToRgb(colors.base);
-    const light = cssToRgb(colors.light);
-    const dark = cssToRgb(colors.dark);
-    const vein = cssToRgb(colors.vein);
+    const paletteColors =
+      kind === 'terracotta'
+        ? { base: '#b87c64', light: '#dca48e', dark: '#8b5442', vein: '#c88c75' }
+        : kind === 'sage'
+          ? { base: '#7e9683', light: '#acc3af', dark: '#58705d', vein: '#8ea693' }
+          : colors;
+    const base = cssToRgb(paletteColors.base);
+    const light = cssToRgb(paletteColors.light);
+    const dark = cssToRgb(paletteColors.dark);
+    const vein = cssToRgb(paletteColors.vein);
 
     const lutR = new Uint8Array(256);
     const lutG = new Uint8Array(256);

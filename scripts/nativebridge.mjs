@@ -73,6 +73,14 @@ const native = {
     native.calls.push(`seek:${seconds.toFixed(2)}`);
     return native.acceptsSeek;
   },
+  getVolume() {
+    native.calls.push('getVolume');
+    return 0.75;
+  },
+  setVolume(level) {
+    native.calls.push(`setVolume:${level.toFixed(2)}`);
+    return true;
+  },
   openSource(floating) {
     native.calls.push(`source:${floating ? 'floating' : 'tap'}`);
   },
@@ -122,6 +130,12 @@ check('pero el segundo sí viaja al sistema', native.calls[0] === 'seek:120.00',
 native.acceptsSeek = true;
 const accepted = await bridge.seek(147.5);
 check('con Premium el seek se acepta', accepted === true, 'true');
+
+native.calls.length = 0;
+const vol = bridge.getVolume();
+const volSet = bridge.setVolume(0.85);
+check('getVolume lee el volumen nativo', vol === 0.75, `${vol}`);
+check('setVolume envía el volumen al sistema', volSet === true && native.calls.includes('setVolume:0.85'), native.calls.find(c => c.startsWith('setVolume')) ?? '—');
 
 // --- lo que empuja Kotlin --------------------------------------------------
 native.current = payload({ title: 'Seis', currentTime: 3.2, canSeek: true });

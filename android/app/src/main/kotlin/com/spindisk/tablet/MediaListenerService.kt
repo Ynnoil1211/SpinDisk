@@ -181,13 +181,15 @@ class MediaListenerService : NotificationListenerService() {
             } else {
                 resolvingArtKey = key
                 artExecutor.execute {
-                    val url = MediaHub.artUrl(artwork, key)
+                    val url = runCatching { MediaHub.artUrl(artwork, key) }.getOrNull()
                     handler.post {
                         if (lastArtKey == key) {
                             lastCoverUrl = url
                             artResolvedForKey = true
-                            resolvingArtKey = ""
                             publish()
+                        }
+                        if (resolvingArtKey == key) {
+                            resolvingArtKey = ""
                         }
                     }
                 }

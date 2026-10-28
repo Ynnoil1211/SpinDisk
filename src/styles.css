@@ -376,6 +376,44 @@ body.is-playing .tbtn--play .icon-play {
     radial-gradient(circle at 50% 50%, rgba(226, 238, 240, 0.9), rgba(176, 192, 196, 0.75) 76%);
 }
 
+.swatch[data-texture="smoke"] {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.5), transparent 42%),
+    radial-gradient(circle at 50% 50%, #46413d, #1c1a19 74%);
+}
+
+.swatch[data-texture="terracotta"] {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55), transparent 42%),
+    conic-gradient(from 190deg, #b87c64, #925844, #dca48e, #b87c64);
+}
+
+.swatch[data-texture="sage"] {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55), transparent 42%),
+    conic-gradient(from 190deg, #7e9683, #5a705e, #acc3af, #7e9683);
+}
+
+.swatch[data-desk="album"] {
+  background: conic-gradient(from 45deg, #d4beaa, #ab9480, #ebdccf, #d4beaa);
+}
+
+.swatch[data-desk="wood"] {
+  background: linear-gradient(135deg, #443428 0%, #291e17 100%);
+}
+
+.swatch[data-desk="sand"] {
+  background: linear-gradient(135deg, #eee5db 0%, #cfc1b0 100%);
+}
+
+.swatch[data-desk="slate"] {
+  background: linear-gradient(135deg, #2b2826 0%, #171514 100%);
+}
+
+.swatch[data-desk="sage"] {
+  background: linear-gradient(135deg, #4d564e 0%, #303831 100%);
+}
+
 .swatch:active {
   transform: scale(0.92);
 }

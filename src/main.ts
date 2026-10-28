@@ -1,3 +1,4 @@
+import { applyPaletteToCss } from './theme/palette.js';
 /**
  * SpinDisk · punto de entrada.
  *
@@ -39,6 +40,7 @@ const panel = new ConsolePanel(consoleEl, turntable, preferences, {
   onPreferences: (prefs) => {
     turntable.setPreferences(prefs);
     savePreferences(prefs);
+    kick();
   },
   notify,
   onPanelMotion: (openAmount, heightPx, dragging) => {
@@ -93,7 +95,7 @@ canvas.addEventListener('pointerdown', (event) => {
 
   // En modo reloj, sólo los bordes extremos invocan la consola; tocar donde iba
   // originalmente el vinilo, la funda o el plato despierta y despausa la música.
-  if (turntable.clock > 0.05 && !edge) {
+  if ((turntable.clock > 0.05 || turntable.clockShown || turntable.msUntilClock === 0) && !edge) {
     if (panel.isOpen) panel.close();
     turntable.pointerDown(target, x, y);
     kick();
@@ -293,10 +295,12 @@ turntable.onChange = () => {
   } else {
     panel.syncBodyClasses();
   }
+  applyPaletteToCss(turntable.palette, turntable.deskTexture);
   kick();
 };
 
 const boot = async (): Promise<void> => {
+  applyPaletteToCss(turntable.palette, turntable.deskTexture);
   scene.resize();
   scene.render(performance.now());
   try {

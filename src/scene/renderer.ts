@@ -86,6 +86,7 @@ export class Scene {
   private lastRenderAt = 0;
   /** Presupuesto por fotograma: como máximo 1 regeneración pesada de sprite por render(). */
   private heavyBudgetUsed = false;
+  private lastDiscKey = '';
 
   constructor(canvas: HTMLCanvasElement, turntable: Turntable) {
     this.canvas = canvas;
@@ -98,23 +99,39 @@ export class Scene {
       if (reason === 'track') {
         this.frontKey = '';
         this.backKey = '';
+        this.backdropKey = '';
+        this.lastDiscKey = '';
         clearTextureCache();
       } else if (reason === 'cover') {
         this.frontKey = '';
+        this.backdropKey = '';
+        this.lastDiscKey = '';
+        clearTextureCache();
       }
     };
+  }
+
+  private getDeskColors(palette: Palette, deskKind: string): { light: string; dark: string } {
+    if (deskKind === 'wood') return { light: '#3a2d22', dark: '#231a14' };
+    if (deskKind === 'sand') return { light: '#e4dacf', dark: '#c8bbae' };
+    if (deskKind === 'slate') return { light: '#282523', dark: '#151413' };
+    if (deskKind === 'sage') return { light: '#434c44', dark: '#2a312b' };
+    return { light: palette.deskLight, dark: palette.deskDark };
   }
 
   get isTransitioning(): boolean {
     const tt = this.turntable;
     const palette = tt.palette;
-    const backdropDirty = `${this.width}x${this.height}|${palette.deskLight}|${palette.deskDark}` !== this.backdropKey;
+    const deskColors = this.getDeskColors(palette, tt.deskTexture);
+    const backdropDirty = `${this.width}x${this.height}|${tt.deskTexture}|${deskColors.light}|${deskColors.dark}` !== this.backdropKey;
     const frontDirty = `${tt.cover?.currentSrc ?? 'none'}|${palette.paper}|${tt.track?.title ?? ''}` !== this.frontKey;
+    const discDirty = `${tt.texture}|${tt.textureSeed}|${palette.marbleBase}|${palette.marbleVein}` !== this.lastDiscKey;
     return (
       this.prevFront !== null ||
       Math.abs(this.panelLift - this.panelTarget) > 0.002 ||
       backdropDirty ||
-      frontDirty
+      frontDirty ||
+      discDirty
     );
   }
 
@@ -181,7 +198,7 @@ export class Scene {
     // y dejamos la regeneración del backdrop para el siguiente fotograma (Fotograma B).
     const frontKey = `${tt.cover?.currentSrc ?? 'none'}|${palette.paper}|${tt.track?.title ?? ''}`;
     const frontNeedsUpdate = frontKey !== this.frontKey || !this.front;
-    if (!this.backdrop || !frontNeedsUpdate) {
+    if (!this.backdrop || !frontNeedsUpdate || !tt.playing) {
       this.ensureBackdrop(palette);
     }
 
@@ -207,7 +224,10 @@ export class Scene {
   // ------------------------------------------------------------------ fondo
 
   private ensureBackdrop(palette: Palette): void {
-    const key = `${this.width}x${this.height}|${palette.deskLight}|${palette.deskDark}`;
+    const tt = this.turntable;
+    const deskKind = tt.deskTexture;
+    const { light: deskLight, dark: deskDark } = this.getDeskColors(palette, deskKind);
+    const key = `${this.width}x${this.height}|${deskKind}|${deskLight}|${deskDark}`;
     if (this.backdrop && key === this.backdropKey) return;
 
     this.heavyBudgetUsed = true;
@@ -216,11 +236,36 @@ export class Scene {
     const h = this.height;
 
     const base = ctx.createLinearGradient(0, 0, w * 0.35, h);
-    base.addColorStop(0, palette.deskLight);
-    base.addColorStop(0.55, palette.deskLight);
-    base.addColorStop(1, palette.deskDark);
+    base.addColorStop(0, deskLight);
+    base.addColorStop(0.55, deskLight);
+    base.addColorStop(1, deskDark);
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, w, h);
+
+    if (deskKind === 'wood') {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 220, 180, 0.03)';
+      for (let i = -3; i < 16; i++) {
+        ctx.beginPath();
+        const yOff = h * (i / 9);
+        ctx.lineWidth = 1.2 + (Math.abs(i) % 3) * 0.8;
+        ctx.ellipse(w * 0.5, yOff, w * 0.88, h * 0.32, -0.07, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (deskKind === 'sand') {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(100, 80, 60, 0.02)';
+      ctx.lineWidth = 1;
+      const step = 10;
+      for (let x = 0; x < w; x += step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     // Charco de luz cálida desde arriba a la izquierda.
     const light = ctx.createRadialGradient(w * 0.22, h * -0.1, h * 0.05, w * 0.22, h * -0.1, h * 1.15);
@@ -279,6 +324,7 @@ export class Scene {
     drawDiscShadow(this.ctx, cx, cy, r, palette);
 
     const state = this.makeDiscState(palette);
+    this.lastDiscKey = `${tt.texture}|${tt.textureSeed}|${palette.marbleBase}|${palette.marbleVein}`;
     // Si el disco está completamente oculto dentro de la funda, no lo dibujamos
     // en pantalla; pero si este fotograma aún no gastó presupuesto pesado y la
     // pista está lista, precalentamos el sprite antes de que venza REVEAL_DELAY.

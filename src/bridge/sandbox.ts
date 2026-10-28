@@ -40,6 +40,7 @@ export class SandboxBridge implements PlayerBridge {
   private time = 0;
   private playing = false;
   private canSeek = true;
+  private deviceVolume = 0.75;
   private lastTick = 0;
   private timer: number | null = null;
   private seekLockedUntil = 0;
@@ -148,6 +149,15 @@ export class SandboxBridge implements PlayerBridge {
     this.time = Math.max(0, Math.min(this.track.duration - 0.25, seconds));
     this.lastTick = performance.now();
     this.emit();
+    return true;
+  }
+
+  getVolume(): number {
+    return this.deviceVolume;
+  }
+
+  setVolume(level: number): boolean {
+    this.deviceVolume = Math.max(0, Math.min(1, level));
     return true;
   }
 

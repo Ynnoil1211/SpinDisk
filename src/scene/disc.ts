@@ -28,7 +28,7 @@ export interface DiscState {
 const textureCache = new Map<string, HTMLCanvasElement>();
 const spinningCache = new Map<string, HTMLCanvasElement>();
 const shadowCache = new Map<string, HTMLCanvasElement>();
-const MAX_TEXTURES = 5;
+const MAX_TEXTURES = 8;
 
 const textureKey = (state: DiscState): string =>
   `${state.texture}|${state.seed}|${state.palette.marbleBase}|${state.palette.marbleVein}`;
@@ -84,7 +84,7 @@ const getOverlay = (radius: number, kind: DiscTexture): HTMLCanvasElement => {
   ctx.arc(c, c, R, 0, Math.PI * 2);
   ctx.clip();
 
-  const lightAlpha = kind === 'black' ? 0.16 : 0.10;
+  const lightAlpha = (kind === 'black' || kind === 'smoke') ? 0.16 : 0.10;
   const darkAlpha = kind === 'cream' ? 0.05 : 0.08;
 
   // Surcos: anillos muy finos, más cerrados hacia el borde.
@@ -316,6 +316,10 @@ export const getSpinningDisc = (state: DiscState): HTMLCanvasElement => {
     ctx.fillStyle = 'rgba(228,236,238,0.55)';
     ctx.fillRect(-r, -r, r * 2, r * 2);
     ctx.globalAlpha = 0.8;
+  } else if (state.texture === 'smoke') {
+    ctx.fillStyle = 'rgba(32,28,26,0.68)';
+    ctx.fillRect(-r, -r, r * 2, r * 2);
+    ctx.globalAlpha = 0.82;
   }
   ctx.drawImage(texture, -r, -r, r * 2, r * 2);
   ctx.restore();

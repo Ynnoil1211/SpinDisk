@@ -36,14 +36,19 @@ export interface PlayerBridge {
   next(): Promise<void>;
   previous(): Promise<void>;
   seek(seconds: number): Promise<boolean>;
+  getVolume?(): number;
+  setVolume?(level: number): boolean;
   /** Abre la app de origen (Spotify / YouTube). `floating` pide ventana flotante. */
   openSource(options?: { floating?: boolean }): Promise<void>;
 }
 
-export type DiscTexture = 'marble' | 'black' | 'cream' | 'glass';
+export type DiscTexture = 'marble' | 'black' | 'cream' | 'glass' | 'smoke' | 'terracotta' | 'sage';
+
+export type DeskTexture = 'album' | 'wood' | 'sand' | 'slate' | 'sage';
 
 export interface Preferences {
   discTexture: DiscTexture;
+  deskTexture: DeskTexture;
   rpm: 33 | 45;
   /** 0..1 volumen del foley (estática + mecánica). */
   foley: number;
@@ -57,6 +62,7 @@ export interface Preferences {
 
 export const DEFAULT_PREFERENCES: Preferences = {
   discTexture: 'marble',
+  deskTexture: 'album',
   rpm: 33,
   foley: 0.55,
   clockWhilePlaying: false,

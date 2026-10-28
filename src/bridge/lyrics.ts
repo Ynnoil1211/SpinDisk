@@ -213,7 +213,6 @@ const attemptLookup = async (
     track_name: clean.title,
     duration: String(Math.round(duration)),
   });
-  if (duration > 0) params.set('album_name', '');
 
   const primary = await fetchJson(`${API}/get?${params.toString()}`);
   if (primary.status === 'ok') {

@@ -50,6 +50,12 @@ class NativeBridge(private val activity: MainActivity) {
     fun seek(seconds: Double): Boolean = MediaHub.seek(seconds)
 
     @JavascriptInterface
+    fun getVolume(): Double = MediaHub.getVolume(activity)
+
+    @JavascriptInterface
+    fun setVolume(level: Double): Boolean = MediaHub.setVolume(activity, level)
+
+    @JavascriptInterface
     fun openSource(floating: Boolean) {
         // Los métodos de esta clase corren en la hilatura del WebView, no en la
         // de interfaz: abrir una actividad hay que devolverlo al hilo bueno.

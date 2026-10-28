@@ -67,6 +67,7 @@ export class ConsolePanel {
   private foley: HTMLInputElement;
   private inner: HTMLElement | null = null;
   private swatchButtons: HTMLButtonElement[];
+  private deskButtons: HTMLButtonElement[];
   private rpmButtons: HTMLButtonElement[];
   private clockButtons: HTMLButtonElement[];
   private lastBodyPlaying: boolean | null = null;
@@ -101,7 +102,8 @@ export class ConsolePanel {
     this.foley = q<HTMLInputElement>('foley');
     this.inner = this.root.querySelector<HTMLElement>('.console__inner');
 
-    this.swatchButtons = Array.from(this.root.querySelectorAll<HTMLButtonElement>('.swatch'));
+    this.swatchButtons = Array.from(this.root.querySelectorAll<HTMLButtonElement>('#swatches [data-texture]'));
+    this.deskButtons = Array.from(this.root.querySelectorAll<HTMLButtonElement>('#desk-swatches [data-desk]'));
     this.rpmButtons = Array.from(this.root.querySelectorAll<HTMLButtonElement>('#rpm-switch button'));
     this.clockButtons = Array.from(this.root.querySelectorAll<HTMLButtonElement>('#clock-switch button'));
 
@@ -172,6 +174,16 @@ export class ConsolePanel {
       });
     });
 
+    this.deskButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const desk = button.dataset.desk;
+        if (!desk) return;
+        this.prefs.deskTexture = desk as Preferences['deskTexture'];
+        this.applyPreferences();
+        this.handlers.notify('Fondo: ' + (button.title || desk));
+      });
+    });
+
     this.rpmButtons.forEach((button) => {
       button.addEventListener('click', () => {
         const rpm = button.dataset.rpm === '45' ? 45 : 33;
@@ -195,7 +207,12 @@ export class ConsolePanel {
     });
 
     this.foley.addEventListener('input', () => {
-      this.prefs.foley = clamp(Number(this.foley.value) / 100, 0, 1);
+      this.arm();
+      const val = clamp(Number(this.foley.value) / 100, 0, 1);
+      this.prefs.foley = val;
+      if (typeof this.turntable.setSystemVolume === 'function') {
+        this.turntable.setSystemVolume(val);
+      }
       this.applyPreferences(false);
     });
     this.foley.addEventListener('change', () => this.arm());
@@ -287,6 +304,8 @@ export class ConsolePanel {
     };
     this.root.addEventListener('pointerup', drop);
     this.root.addEventListener('pointercancel', drop);
+    window.addEventListener('pointerup', drop);
+    window.addEventListener('pointercancel', drop);
   }
 
   /**
@@ -342,6 +361,11 @@ export class ConsolePanel {
     if (this.isOpen) {
       this.arm();
       return;
+    }
+    const sysVol = typeof this.turntable.getSystemVolume === 'function' ? this.turntable.getSystemVolume() : -1;
+    if (typeof sysVol === 'number' && Number.isFinite(sysVol) && sysVol >= 0) {
+      this.prefs.foley = clamp(sysVol, 0, 1);
+      this.foley.value = String(Math.round(this.prefs.foley * 100));
     }
     this.isOpen = true;
     this.root.classList.add('is-open');
@@ -455,6 +479,10 @@ export class ConsolePanel {
     for (let i = 0; i < this.swatchButtons.length; i++) {
       const button = this.swatchButtons[i];
       button.classList.toggle('is-active', button.dataset.texture === this.prefs.discTexture);
+    }
+    for (let i = 0; i < this.deskButtons.length; i++) {
+      const button = this.deskButtons[i];
+      button.classList.toggle('is-active', button.dataset.desk === this.prefs.deskTexture);
     }
     for (let i = 0; i < this.rpmButtons.length; i++) {
       const button = this.rpmButtons[i];

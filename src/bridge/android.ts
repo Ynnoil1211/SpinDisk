@@ -25,6 +25,8 @@ interface NativeBridgeHandle {
   next(): boolean;
   previous(): boolean;
   seek(seconds: number): boolean;
+  getVolume(): number;
+  setVolume(level: number): boolean;
   openSource(floating: boolean): void;
   notificationAccess(): boolean;
   openNotificationSettings(): void;
@@ -160,6 +162,18 @@ export class AndroidBridge implements PlayerBridge {
     const native = handle();
     if (!native) return Promise.resolve(false);
     return Promise.resolve(native.seek(seconds) === true);
+  }
+
+  getVolume(): number {
+    const native = handle();
+    if (!native || typeof native.getVolume !== 'function') return 1;
+    return native.getVolume();
+  }
+
+  setVolume(level: number): boolean {
+    const native = handle();
+    if (!native || typeof native.setVolume !== 'function') return false;
+    return native.setVolume(level);
   }
 
   openSource(options?: { floating?: boolean }): Promise<void> {
