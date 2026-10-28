@@ -228,7 +228,7 @@ export const cssToRgb = (css: string): Rgb => {
       b: parseInt(hex3[3] + hex3[3], 16),
     };
   }
-  const match = /hsl\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/i.exec(clean);
+  const match = /hsla?\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/i.exec(clean);
   if (match) {
     const h = parseFloat(match[1]) / 360;
     const s = parseFloat(match[2]) / 100;

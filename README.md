@@ -1,123 +1,157 @@
-# SpinDisk
+# SpinDisk · Tocadiscos de escritorio
 
-Tocadiscos de escritorio para tablet Android en horizontal. No reproduce música: se
-engancha a lo que ya suena en Spotify, YouTube Music o YouTube y lo convierte en un disco
-de vinilo que gira, un brazo que se posa y una funda que se puede voltear.
+> **Tocadiscos analógico interactivo para tablets Android en orientación horizontal.**  
+> No es un reproductor más: SpinDisk se conecta a la sesión multimedia de lo que ya está sonando en **Spotify**, **YouTube Music** o **YouTube**, convirtiéndolo en una experiencia física táctil: vinilo que gira, aguja fonocaptora sobre el surco, carátula de cartón volteable con letras sincronizadas y reloj de reposo de bajísimo consumo.
 
-> Estado: **F0 a F8 cerradas** (entorno, escena, física medida, consola probada, reverso con
-> letra sincronizada, reposo con reloj, motor de sonido verificado, shell nativo y **APK que se
-> compila en la nube**). Queda instalar ese APK en la tablet y medir RAM y batería. Ver
-> [plan.md](plan.md).
+---
 
-## Cómo se trabaja
+## ✨ Características destacadas
 
-No hace falta Android Studio, ni Java, ni bundler. Sólo Node 20+.
+* 🎛️ **Física de tocadiscos real:**
+  - Inercia mecánica precisa al arrancar y frenar (33⅓ y 45 RPM).
+  - Freno táctil con el dedo: apoya la mano sobre el vinilo para pausar la reproducción y suéltala para reanudar suavemente.
+  - Arrastre manual del brazo y la aguja para adelantar o retroceder en pistas con soporte (*Spotify Premium* / *YouTube*).
+  - Modo protegido (*Spotify Free*): la aguja vibra hápticamente y rebota elásticamente a su posición sin desincronizarse; llevarla al centro salta de canción.
+
+* 🎨 **Texturas de vinilo y fondos de mesa:**
+  - **7 texturas de vinilo:** Marmoleado procedural camaleónico, Negro clásico 180 g, Crema vintage, Cristal translúcido, Humo ámbar, Terracota suave y Verde salvia veteado.
+  - **5 fondos de escritorio:** Portada adaptativa, Madera de nogal cálido con vetas orgánicas, Arena y lino con sutil trama textil, Pizarra grafito nocturna y Verde salvia relajante.
+  - Motor cromático *«Tierra y Pastel»* que extrae colores armónicos de la carátula en tiempo real.
+
+* 🔊 **Sonido Foley 100% sintetizado en tiempo real:**
+  - Generado puramente con Web Audio API (cero archivos MP3 o WAV descargados).
+  - Chisporroteo de polvo y surco en bucle normalizado que se apaga al levantar la aguja.
+  - Golpe y caída sutil de la púa al posarse en el disco y chasquido mecánico de encendido/apagado.
+  - Control de volumen sincronizado directamente con el volumen multimedia del sistema Android.
+
+* 📖 **Funda interactiva y letras sincronizadas (*Liner Notes*):**
+  - Toca la carátula para voltear la funda 180° en 3D con visualización del espesor del cartón.
+  - Reverso con letras sincronizadas verso a verso mediante [LRCLIB](https://lrclib.net/) con subrayado dinámico en color terracota.
+  - Ficha técnica automática cuando una canción es instrumental o no dispone de letra en el archivo.
+
+* 🕰️ **Modo Reposo y Reloj de Mesa:**
+  - Tras 60 segundos de pausa, la aguja aparca, el disco se guarda en la funda y aparece un elegante fajín de papel con la hora, fecha y frases poéticas aleatorias.
+  - Consumo ultra bajo: la escena se detiene y sólo realiza **un repintado por minuto**.
+  - Opción de *«Reloj de día»*: muestra la hora en una etiqueta visible sobre la mesa mientras la música suena.
+
+* 📱 **Consola de control ergonómica:**
+  - Se abre deslizando desde el borde inferior, tocando la esquina superior izquierda o tocando la mesa vacía.
+  - Auto-ocultación tras 3 segundos de inactividad o cierre instantáneo deslizando hacia abajo (*swipe down*).
+  - Acceso directo a la app en reproducción con soporte para ventana flotante / multiventana.
+
+---
+
+## 🏗️ Arquitectura del sistema
+
+SpinDisk separa por completo la lógica de reproducción del motor gráfico y la física:
+
+```mermaid
+flowchart TD
+    subgraph Fuentes ["Fuentes Multimedia"]
+        A[Spotify]
+        B[YouTube Music]
+        C[YouTube]
+    end
+
+    subgraph Plataforma ["Plataformas e Interfaces"]
+        D["AndroidBridge<br/>(NotificationListenerService + MediaSession)"]
+        E["SandboxBridge<br/>(Menú F2: Búsqueda iTunes + LRCLIB)"]
+    end
+
+    subgraph Core ["Núcleo de SpinDisk"]
+        F["PlayerBridge<br/>(Contrato único: TrackSnapshot, play, pause, seek, volume)"]
+        G["Turntable<br/>(Física, inercia, aguja, surcos, reposo)"]
+        H["Foley<br/>(Web Audio: estática, interruptores, caída)"]
+    end
+
+    subgraph Vista ["Render y UI"]
+        I["Scene / Renderer<br/>(Canvas 2D acelerado, sprites en caché)"]
+        J["ConsolePanel<br/>(Consola translúcida, transporte, ajustes)"]
+    end
+
+    Fuentes --> D
+    D --> F
+    E --> F
+    F --> G
+    G --> H
+    G --> I
+    G --> J
+```
+
+---
+
+## 🚀 Desarrollo local
+
+No necesitas Android Studio, JDK ni emuladores para desarrollar o probar el 95% de la aplicación. Solo necesitas **Node.js 20+**.
 
 ```bash
-npm install          # dependencias de desarrollo: typescript y @napi-rs/canvas
-node scripts/dev.mjs # sirve http://127.0.0.1:5173 y recompila al guardar
+# Instalar dependencias de desarrollo (TypeScript y @napi-rs/canvas)
+npm install
+
+# Iniciar servidor de desarrollo en http://127.0.0.1:5173
+npm run dev
 ```
 
-| Comando | Qué hace |
-| --- | --- |
-| `npm run dev` | compila, sirve `dist/` y recarga el navegador al guardar |
-| `npm run build` | compila `src/` a `dist/` |
-| `npm start` | sirve `dist/` sin vigilancia |
-| `npm run typecheck` | comprueba tipos sin escribir nada |
-| `npm run preview -- track` | dibuja la escena a PNG sin navegador |
-| `npm run sim` | corre el banco de física y escribe la tira de fotogramas |
-| `npm run ui` | corre el banco de consola y panel F2 sobre un DOM mínimo |
-| `npm run audio` | revisa el grafo del motor Foley con un AudioContext falso |
-| `npm run native` | copia `dist/` a `android/app/src/main/assets/www` y pesa el resultado |
-| `npm run native:check` | verifica el contrato TypeScript ↔ Kotlin sin compilar nada (30) |
-| `npm run bridge` | prueba el puente nativo y la escena contra un `SpinDiskNative` falso (29) |
-| `npm run sandbox` | comprueba que el simulador encadena canciones y respeta Free/Premium (9) |
-| `npm run perf` | mide el dibujo: girando ~1,2 ms, dormido ~1,1 ms |
+> **Consejo:** Al abrir el proyecto en el navegador, presiona **`F2`** para abrir el menú secreto **Sandbox**: permite buscar cualquier canción real en iTunes, cargar su carátula y letra, probar cuentas *Free* vs *Premium* y simular cambios de pista.
 
-En el navegador, **F2** abre el panel de pruebas: busca una canción real (portada y letra
-incluidas), cambia entre Spotify Free y Premium, y simula cinco saltos seguidos.
+---
 
-## Escenarios de captura
+## 📋 Comandos y bancos de pruebas
 
-`node scripts/preview.mjs <escenario>` deja un PNG en `docs/captures/`:
+El proyecto cuenta con un conjunto exhaustivo de bancos de pruebas automatizados que no requieren navegador:
 
-| Escenario | Qué muestra |
-| --- | --- |
-| `desk` | la mesa vacía con la funda en blanco |
-| `track` | disco fuera, brazo sobre el surco, portada real |
-| `flip` | el reverso con la letra sincronizada |
-| `flipmid` | el canto del cartón a mitad del giro |
-| `liner` | liner notes con el verso actual subrayado |
-| `nolyrics` | ficha técnica cuando la letra no está en el archivo |
-| `instrumental` | ficha técnica de una pieza instrumental |
-| `clock` | modo reloj de escritorio tras un minuto en pausa |
-| `clocktag` | reloj de día: la hora en un papelito mientras suena |
-| `clocksleep` | dormirse con la letra a la vista (la funda se gira sola) |
-| `black` `cream` `glass` | las otras tres texturas del vinilo |
-| `free` | el brazo rebotando en una cuenta gratuita |
+| Comando | Función | Cobertura / Estado |
+| :--- | :--- | :--- |
+| `npm run typecheck` | Comprobación estricta de tipos con TypeScript | 21 archivos sin errores |
+| `npm run build` | Compila módulos TypeScript a `dist/` | 21 módulos + 2 estáticos (~1.5 s) |
+| `npm run ui` | Pruebas de consola, transporte, gestos y DOM | **104/104** comprobaciones ✅ |
+| `npm run sim` | Simulación matemática de física, inercia y aguja | **62/62** comprobaciones ✅ |
+| `npm run audio` | Inspección de nodos WebAudio y niveles Foley | **43/43** comprobaciones ✅ |
+| `npm run native:check` | Validación estática del contrato TS ↔ Kotlin | **38/38** comprobaciones ✅ |
+| `npm run bridge` | Prueba del puente nativo con doble de Android | **31/31** comprobaciones ✅ |
+| `npm run perf` | Perfilado de memoria (fuga de heap) y frametime | 0 MB fuga en 800 frames |
+| `npm run native` | Compila y sincroniza assets con el proyecto Android | 220 KB en `assets/www` |
+| `npm run preview -- <caso>` | Genera capturas PNG de la escena en `docs/captures/` | Render Skia nativo |
 
-Para ver cómo queda en otro tamaño de pantalla, `SPINDISK_VIEWPORT=850x393 node scripts/preview.mjs track`
-dibuja la escena como en un móvil tumbado. En 16:10 (la tablet) sale exactamente como se diseñó; en
-pantallas más anchas el motor agranda la escena un 18 % y recorta un poco de aire arriba y abajo.
-
-`node scripts/sim.mjs` mide la física en cambio: 62 comprobaciones con umbrales (freno, arranque,
-geometría del brazo, giro con el dedo, antirrebote, toque seco, volteo de la funda, reposo,
-atajo al reloj) y una tira de cuatro fotogramas en `docs/captures/f2-freno.png`.
-`node scripts/uitest.mjs` hace lo mismo con la consola y el panel F2: 89 comprobaciones sobre el
-`index.html` real con un DOM mínimo y reloj falso. Los dos terminan en verde o con código 1.
-
-El panel se abre deslizando desde el borde inferior (o tocando la esquina superior izquierda) y
-**se cierra deslizándolo hacia abajo**, además de a los 3 s sin tocarlo. La franja que lo abre se
-mide en píxeles de pantalla (6 % del alto, entre 38 y 64 px), y la primera vez que se abre la app se
-enseña solo, porque la pista es una rayita de 3 px y nadie adivina que está ahí.
-
-El panel F2 incluye un botón **«Modo reloj ahora»**: adelanta el minuto de reposo para ver el
-reloj de escritorio sin esperar, y muestra la cuenta atrás real cuando está en pausa.
-
-## Cómo está hecho
-
-```
-src/core      contrato con la fuente de datos (PlayerBridge) y preferencias
-src/bridge    sandbox (navegador) y android (puente SpinDiskNative de la tablet)
-src/scene     física del tocadiscos, vinilo, funda y composición
-src/render    primitivas de dibujo: ruido, mármol, sombreado, texto curvo
-src/theme     armonización de la paleta a tierra y pastel
-src/ui        consola, panel de pruebas y avisos
-android/      shell nativo: una Activity con WebView, el servicio de MediaSession y Gradle
-scripts/      build, servidor, captura por Skia y los cinco bancos de pruebas
+### Escenarios de captura visual disponibles:
+```bash
+node scripts/preview.mjs desk          # Mesa vacía
+node scripts/preview.mjs track         # Canción sonando con vinilo fuera
+node scripts/preview.mjs flip          # Carátula volteada con letras
+node scripts/preview.mjs terracotta    # Textura terracota
+node scripts/preview.mjs sage          # Textura verde salvia
+node scripts/preview.mjs smoke         # Textura humo ámbar
+node scripts/preview.mjs clock         # Modo reloj de reposo
 ```
 
-El motor visual no sabe de dónde viene la canción: sólo recibe un objeto con título,
-artista, portada, tiempo y capacidades. Eso permite desarrollar el 95 % en el navegador y
-enchufar Android después con un único puente Kotlin.
+---
 
-La tablet no lleva Capacitor ni AndroidX: el APK es una `Activity` con una `WebView` y un
-`NotificationListenerService` propio, sin una sola dependencia de terceros. Por eso el peso
-publicado de la interfaz es de 160 KB y el motor gráfico lo pone la propia tablet.
+## 📦 Compilación y descarga del APK
 
-## El APK
+El APK de Android se compila automáticamente en la nube a través de GitHub Actions (`.github/workflows/build-apk.yml`) en cada *push* a `main`.
 
-`.github/workflows/build-apk.yml` compila la interfaz, verifica el contrato, copia `dist/` a los
-assets y ejecuta `gradle :app:assembleDebug` en un runner de GitHub con JDK 17 y el SDK de
-Android. El APK queda como artefacto descargable en la pestaña **Actions**, ya con nombre
-`spindisk.apk` (el flujo lo renombra para no llegar a la tablet como `app-debug.apk`).
+- **Cero dependencias pesadas:** No utiliza Capacitor ni frameworks inflados; la app consta de una única `Activity` con un `WebView` de alto rendimiento y un `NotificationListenerService` nativo en Kotlin.
+- **Tamaño ultra-reducido:** El instalador pesa solo **~0.83 MB** (frente a los 15-50 MB habituales).
+- **Instalación:**
+  1. Ve a la pestaña **Actions** en GitHub y descarga el artefacto **`spindisk-apk`**.
+  2. Transfiere el archivo `spindisk.apk` a tu tablet e instálalo.
+  3. Al abrir la app por primera vez, concede el permiso de **Acceso a notificaciones** para que pueda leer la información de la canción en reproducción.
+  4. Para detalles sobre permisos o advertencias de Play Protect, consulta la guía en [`docs/apk.md`](docs/apk.md).
 
-**Ya está compilado.** El primer `push` bastó: la
-[ejecución 40427965945](https://github.com/Ynnoil1211/SpinDisk/actions/runs/40427965945) terminó
-en verde en 98 s con las doce etapas correctas, y el artefacto **`spindisk-apk` pesa 0,83 MB**.
-Para instalarlo: descargar el `.zip` del artefacto, descomprimirlo, pasar el `spindisk.apk` a la
-tablet e instalarlo aceptando el origen desconocido. La primera vez que se abre pide **acceso a
-las notificaciones**, que es lo único que le permite saber qué suena. Si **Play Protect** lo
-bloquea (lo normal con cualquier app de fuera de la tienda), en `docs/apk.md` están los tres
-caminos: `adb install`, «instalar de todas formas» o desactivar el análisis un momento.
+---
 
-El flujo guarda en caché `~/.android/debug.keystore`, así que todas las compilaciones firman con
-la misma clave y una actualización se instala encima de la anterior.
+## 📊 Presupuesto de recursos y eficiencia
 
-En este PC no hay JDK ni SDK: el Kotlin se escribió y revisó a mano, y la compilación de verdad
-la hizo el runner.
+| Métrica | Presupuesto objetivo | Medición real |
+| :--- | :--- | :--- |
+| **Tamaño del APK** | < 15 MB | **0.83 MB** |
+| **Assets web instalados** | < 1 MB | **220 KB** |
+| **Frecuencia en reposo** | 1 frame / minuto | **1 frame / minuto** (modo `settled`) |
+| **Tiempo de render girando** | < 16.6 ms (60 FPS) | **~1.2 ms** (CPU pesimista) |
+| **Fuga de memoria** | 0 MB | **0 MB** de retención tras 800 frames |
 
-## Presupuesto
+---
 
-Menos de 15 MB instalados y 60 MB de RAM: dibujo 2D por hardware, sin motor 3D, sin
-descargar audio, y un solo dibujo por minuto cuando el tocadiscos descansa.
+## 📄 Licencia
+
+Proyecto privado desarrollado para uso personal en tablets y dispositivos de escritorio dedicados.

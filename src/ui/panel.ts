@@ -268,7 +268,7 @@ export class ConsolePanel {
   private bindSwipeDown(): void {
     this.root.addEventListener('pointerdown', (event) => {
       const target = event.target as HTMLElement | null;
-      if (target && target.closest('input, .swatch, .module--source')) {
+      if (target && target.closest('input, .swatch, .source')) {
         this.swipeFromY = null;
         return;
       }
