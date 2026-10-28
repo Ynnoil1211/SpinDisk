@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Tocadiscos de escritorio para tablet Android: visualiza y controla Spotify / YouTube Music / YouTube.",
+  "description": "Tocadiscos de escritorio para Android (móvil o tablet): visualiza y controla Spotify / YouTube Music / YouTube.",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",

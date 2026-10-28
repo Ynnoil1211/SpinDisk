@@ -28,8 +28,9 @@ probable a lo menos.
 
 ## Si sale verde
 
-1. Descarga el artefacto **spindisk-apk**.
-2. Pásalo a la tablet y ábrelo (hay que permitir «instalar desde orígenes desconocidos»
+1. Descarga `spindisk.apk` de la [última release](https://github.com/Ynnoil1211/SpinDisk/releases/latest)
+   (o el artefacto **spindisk-apk** del run en Actions).
+2. Pásalo al dispositivo Android y ábrelo (hay que permitir «instalar desde orígenes desconocidos»
    para el explorador o la app de mensajería con la que llegue).
 3. Al primer arranque, la app pedirá **acceso a las notificaciones**: sin eso no puede
    leer lo que suena. Lo avisa en una banda arriba con un botón «Activar», y también se

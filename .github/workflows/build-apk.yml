@@ -5,9 +5,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Dos pushes seguidos no deben pelearse por la misma release: gana el último.
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   apk:
     runs-on: ubuntu-latest
+    # Necesario para crear la release y subir el APK.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -93,3 +101,34 @@ jobs:
           name: spindisk-apk
           path: spindisk.apk
           if-no-files-found: error
+
+      # Release pública con el APK para descargarlo sin entrar en Actions (los
+      # artefactos exigen sesión en GitHub y caducan a los 90 días). La etiqueta
+      # sale de `versionName`: si la versión no cambió, la release se rehace
+      # apuntando al último commit, así el enlace
+      # releases/latest/download/spindisk.apk siempre da el APK más reciente.
+      - name: Publicar release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          version=$(sed -nE "s/.*versionName '([^']+)'.*/\1/p" android/app/build.gradle)
+          if [ -z "$version" ]; then
+            echo "::error::No se encontró versionName en android/app/build.gradle."
+            exit 1
+          fi
+          tag="v$version"
+          short=$(git rev-parse --short HEAD)
+          cat > notes.md <<EOF
+          APK compilado automáticamente desde \`$short\`.
+
+          **Instalación:** descarga \`spindisk.apk\`, ábrelo en tu dispositivo Android (7.0+) y concede el permiso de *Acceso a notificaciones* al primer arranque.
+          Si Play Protect lo frena, consulta [docs/apk.md](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/apk.md).
+          EOF
+          gh release delete "$tag" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "$tag" spindisk.apk \
+            --target "$GITHUB_SHA" \
+            --title "SpinDisk $version" \
+            --notes-file notes.md \
+            --latest

@@ -1,14 +1,18 @@
 # SpinDisk · Tocadiscos de escritorio
 
 [![build-apk](https://img.shields.io/github/actions/workflow/status/Ynnoil1211/SpinDisk/build-apk.yml?branch=main&label=build-apk)](https://github.com/Ynnoil1211/SpinDisk/actions/workflows/build-apk.yml)
-![Versión](https://img.shields.io/badge/versi%C3%B3n-0.8.1-c2703d)
+[![Release](https://img.shields.io/github/v/release/Ynnoil1211/SpinDisk?label=release&color=c2703d)](https://github.com/Ynnoil1211/SpinDisk/releases/latest)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-1.9-7f52ff?logo=kotlin&logoColor=white)
 ![Android](https://img.shields.io/badge/Android-7.0%2B%20(API%2024)-3ddc84?logo=android&logoColor=white)
 ![APK](https://img.shields.io/badge/APK-0.83%20MB-8a9a5b)
 ![Licencia](https://img.shields.io/badge/licencia-privada-lightgrey)
 
-**Convierte lo que ya suena en Spotify, YouTube Music o YouTube en un tocadiscos físico y táctil para tablets Android en horizontal.** SpinDisk no reproduce audio: se engancha a la sesión multimedia del sistema y la representa como un vinilo que gira, una aguja que puedes arrastrar, una funda con letras sincronizadas y un reloj de reposo que dibuja un solo frame por minuto.
+**Convierte lo que ya suena en Spotify, YouTube Music o YouTube en un tocadiscos físico y táctil para cualquier dispositivo Android — móvil o tablet — en horizontal.** SpinDisk no reproduce audio: se engancha a la sesión multimedia del sistema y la representa como un vinilo que gira, una aguja que puedes arrastrar, una funda con letras sincronizadas y un reloj de reposo que dibuja un solo frame por minuto.
+
+<p align="center">
+  <a href="https://github.com/Ynnoil1211/SpinDisk/releases/latest/download/spindisk.apk"><strong>⬇️ Descargar el último APK</strong></a>
+</p>
 
 <p align="center">
   <img src="docs/captures/f1-track.png" alt="SpinDisk reproduciendo una canción" width="49%">
@@ -47,7 +51,7 @@ Tira de la simulación de freno con el dedo:
 
 ## 🏗️ Arquitectura
 
-El motor visual **no sabe de dónde viene la música**: todo entra por un único contrato (`TrackSnapshot` + `PlayerBridge`). En el navegador lo alimenta un simulador; en la tablet, la `MediaSession` real. Cambiar de uno a otro no toca una línea de dibujo.
+El motor visual **no sabe de dónde viene la música**: todo entra por un único contrato (`TrackSnapshot` + `PlayerBridge`). En el navegador lo alimenta un simulador; en Android, la `MediaSession` real. Cambiar de uno a otro no toca una línea de dibujo.
 
 ```mermaid
 flowchart TD
@@ -115,7 +119,7 @@ SpinDisk/
 | --- | --- |
 | **Desarrollar y probar** (95 % del proyecto) | **Node.js 20+** (CI usa Node 22) y npm |
 | **Compilar el APK en local** *(opcional)* | JDK 17, Gradle 8.7, Android SDK Platform 34 |
-| **Ejecutar en la tablet** | Android 7.0+ (API 24), orientación horizontal y permiso de **Acceso a notificaciones** |
+| **Ejecutar en el dispositivo** | Móvil o tablet con Android 7.0+ (API 24), en horizontal, y permiso de **Acceso a notificaciones** |
 
 > [!NOTE]
 > No hace falta Android Studio ni emuladores: el APK oficial lo compila GitHub Actions.
@@ -193,13 +197,13 @@ npm run preview -- smoke         # Textura humo ámbar
 
 ---
 
-## 📦 Instalar en la tablet
+## 📦 Instalar en Android
 
-El workflow [`build-apk.yml`](.github/workflows/build-apk.yml) se ejecuta en cada *push* a `main`: valida tipos y contrato nativo, compila con Gradle, **verifica que el APK lleva código y assets dentro** y lo publica como artefacto.
-
-1. Abre la pestaña [**Actions**](https://github.com/Ynnoil1211/SpinDisk/actions) y descarga el artefacto **`spindisk-apk`** del último build verde.
-2. Copia `spindisk.apk` a la tablet e instálalo.
+1. Descarga **[`spindisk.apk`](https://github.com/Ynnoil1211/SpinDisk/releases/latest/download/spindisk.apk)** desde la [última release](https://github.com/Ynnoil1211/SpinDisk/releases/latest) — directamente en el móvil o la tablet, sin cuenta de GitHub.
+2. Ábrelo e instálalo (puede pedirte permitir *instalar desde orígenes desconocidos*).
 3. Al abrir la app, concede el permiso de **Acceso a notificaciones** (necesario para leer la canción en curso).
+
+El workflow [`build-apk.yml`](.github/workflows/build-apk.yml) se ejecuta en cada *push* a `main`: valida tipos y contrato nativo, compila con Gradle, **verifica que el APK lleva código y assets dentro** y lo publica como release `v<versionName>` (además de como artefacto en Actions). Si la versión no cambió, la release se rehace con el último commit, así que el enlace de descarga siempre apunta al APK más reciente.
 
 > [!TIP]
 > El keystore de depuración se cachea en CI, así que cada nueva versión se instala **encima** de la anterior sin desinstalar. Para avisos de Play Protect y permisos, consulta [`docs/apk.md`](docs/apk.md).
